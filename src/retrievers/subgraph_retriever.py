@@ -4,10 +4,9 @@ Reference: GRAG (2024) subgraph retrieval + MoR (2025) structural retrieval.
 """
 
 import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
 
 from src.retrievers.base import BaseRetriever
+from src.retrievers.shared_index import SharedIndex
 from src.data.stark_loader import StarkGraphWrapper
 
 
@@ -17,96 +16,104 @@ class SubgraphRetriever(BaseRetriever):
     Strategy:
     1. Find seed nodes relevant to the query (via embedding similarity).
     2. Expand each seed by k hops to get a local neighborhood.
-    3. Merge neighborhoods into a single subgraph.
+    3. If the neighborhood is too large, keep only the most relevant nodes.
     4. Serialize the subgraph (nodes + edges) as context.
     """
 
     def __init__(
         self,
         graph: StarkGraphWrapper,
-        embedding_model: str = "all-MiniLM-L6-v2",
+        shared_index: SharedIndex,
         num_seeds: int = 3,
-        k_hops: int = 2,
+        k_hops: int = 1,
+        max_subgraph_nodes: int = 200,
     ):
         super().__init__(graph)
-        self.encoder = SentenceTransformer(embedding_model)
+        self.shared = shared_index
         self.num_seeds = num_seeds
         self.k_hops = k_hops
-        self.node_ids: list[int] = []
-        self.index: faiss.IndexFlatIP | None = None
-        self._build_index()
+        self.max_subgraph_nodes = max_subgraph_nodes
 
-    def _build_index(self):
-        """Encode all node texts and build a FAISS index for seed selection."""
-        self.node_ids = sorted(self.graph.node_texts.keys())
-        texts = [self.graph.node_texts[nid] for nid in self.node_ids]
+    def _get_seed_nodes(self, query_emb: np.ndarray) -> list[int]:
+        _, node_ids = self.shared.search(query_emb, self.num_seeds)
+        return node_ids
 
-        print(f"[SubgraphRetriever] Encoding {len(texts)} node texts...")
-        embeddings = self.encoder.encode(
-            texts, show_progress_bar=True, normalize_embeddings=True
-        ).astype(np.float32)
-
-        self.index = faiss.IndexFlatIP(embeddings.shape[1])
-        self.index.add(embeddings)
-
-    def _get_seed_nodes(self, query: str) -> list[int]:
-        """Find the most query-relevant nodes as subgraph seeds."""
-        query_emb = self.encoder.encode([query], normalize_embeddings=True).astype(np.float32)
-        scores, indices = self.index.search(query_emb, self.num_seeds)
-        return [self.node_ids[idx] for idx in indices[0]]
-
-    def _expand_subgraph(self, seeds: list[int]) -> set[int]:
-        """Expand seed nodes by k hops and merge into one node set."""
+    def _expand_subgraph(self, seeds: list[int], query_emb: np.ndarray) -> list[int]:
+        """Expand seed nodes by k hops, cap size by re-ranking on relevance."""
         all_nodes = set(seeds)
         for seed in seeds:
             neighbors = self.graph.get_neighbors(seed, self.k_hops)
             all_nodes.update(neighbors)
-        return all_nodes
 
-    def _format_subgraph_context(self, node_ids: set[int]) -> str:
-        """Format a subgraph as context: nodes + their connections."""
-        subgraph = self.graph.get_subgraph(node_ids)
+        if len(all_nodes) <= self.max_subgraph_nodes:
+            return list(all_nodes)
+
+        # Too many nodes — re-rank by embedding similarity and keep top
+        node_list = list(all_nodes)
+        embs = self.shared.get_node_embeddings(node_list)
+        scores = (embs @ query_emb.T).flatten()
+        ranked_indices = np.argsort(-scores)[:self.max_subgraph_nodes]
+        # Always include seeds
+        result = set(seeds)
+        for idx in ranked_indices:
+            result.add(node_list[idx])
+            if len(result) >= self.max_subgraph_nodes:
+                break
+        return list(result)
+
+    def _format_subgraph_context(self, node_ids: list[int]) -> str:
+        node_set = set(node_ids)
+        subgraph = self.graph.graph.subgraph(node_set)
 
         parts = []
-        # Node descriptions
         parts.append("=== Entities ===")
-        for nid in sorted(node_ids):
+        for nid in sorted(node_ids)[:50]:  # Cap displayed nodes
             text = self.graph.node_texts.get(nid, "")
             if text:
-                # Truncate for context window management
                 if len(text) > 300:
                     text = text[:300] + "..."
                 parts.append(f"[Node {nid}] {text}")
 
-        # Edge list
         parts.append("\n=== Relationships ===")
+        edge_count = 0
         for src, dst in subgraph.edges():
             parts.append(f"Node {src} -- Node {dst}")
+            edge_count += 1
+            if edge_count >= 100:  # Cap displayed edges
+                parts.append(f"... and {subgraph.number_of_edges() - 100} more edges")
+                break
 
         return "\n".join(parts)
 
     def retrieve_ids(self, query: str, top_k: int = 10) -> list[int]:
-        seeds = self._get_seed_nodes(query)
-        expanded = self._expand_subgraph(seeds)
-        # Return seeds first, then expanded neighbors
-        result = list(seeds)
-        for nid in expanded:
-            if nid not in seeds:
+        query_emb = self.shared.encode_query(query)
+        seeds = self._get_seed_nodes(query_emb)
+        expanded = self._expand_subgraph(seeds, query_emb)
+
+        # Re-rank expanded nodes by relevance, seeds first
+        embs = self.shared.get_node_embeddings(expanded)
+        scores = (embs @ query_emb.T).flatten()
+        ranked_indices = np.argsort(-scores)
+
+        result = []
+        seen = set()
+        # Seeds first
+        for s in seeds:
+            if s not in seen:
+                result.append(s)
+                seen.add(s)
+        # Then by score
+        for idx in ranked_indices:
+            nid = expanded[idx]
+            if nid not in seen:
                 result.append(nid)
+                seen.add(nid)
             if len(result) >= top_k:
                 break
         return result[:top_k]
 
     def retrieve(self, query: str, top_k: int = 10) -> str:
-        seeds = self._get_seed_nodes(query)
-        expanded = self._expand_subgraph(seeds)
-
-        # Cap the subgraph size to avoid overwhelming the LLM context
-        if len(expanded) > top_k * 10:
-            # Keep seeds + closest neighbors by re-expanding with fewer hops
-            expanded = set(seeds)
-            for seed in seeds:
-                neighbors = self.graph.get_neighbors(seed, k_hops=1)
-                expanded.update(neighbors)
-
+        query_emb = self.shared.encode_query(query)
+        seeds = self._get_seed_nodes(query_emb)
+        expanded = self._expand_subgraph(seeds, query_emb)
         return self._format_subgraph_context(expanded)

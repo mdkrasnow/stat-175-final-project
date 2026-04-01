@@ -20,13 +20,13 @@
 - [x] Define base retriever interface (`src/retrievers/base.py`)
 - [x] Create experiment runner (`experiments/run_experiment.py`)
 - [x] Write `requirements.txt`
-- [ ] Install dependencies and verify STaRK-PrimeKG loads successfully
-- [ ] Clone MoR repo as reference (`git clone https://github.com/Yoega/MoR.git`)
-- [ ] Clone GRAG repo as reference (`git clone https://github.com/HuieL/GRAG.git`)
+- [x] Install dependencies and verify STaRK-PrimeKG loads successfully
+- [x] Clone MoR repo as reference (`references/MoR`)
+- [x] Clone GRAG repo as reference (`references/GRAG`)
 - [ ] Set up API keys (OpenAI or Anthropic) for frozen LLM
-- [ ] **Characterize graph properties**: degree distribution, diameter, clustering coefficient
-- [ ] **Stratify QA pairs by hop count**: compute shortest path from query entity to answer entity in KG, bin into 1-hop, 2-hop, 3-hop, 4+
-- [ ] **Verify statistical power**: ensure sufficient samples per hop-count bin (target n >= 50 per bin)
+- [x] **Characterize graph properties**: 129K nodes, 4M edges, mean degree 62.6, clustering 0.079, diameter ~15
+- [x] **Stratify QA pairs by hop count**: 1-hop: 3851, 2-hop: 3699, 3-hop: 2193, 4-hop: 1001, 5-hop: 313, 6+: 147
+- [x] **Verify statistical power**: all bins >= 50 samples — good to proceed
 
 ## Phase 2: Implement Retrieval Strategies (Weeks 2-3)
 
@@ -34,11 +34,12 @@
 - [x] Path-centric retriever — scaffold (`src/retrievers/path_retriever.py`)
 - [x] Subgraph-centric retriever — scaffold (`src/retrievers/subgraph_retriever.py`)
 - [x] Hybrid retriever — scaffold (`src/retrievers/hybrid_retriever.py`)
-- [ ] Validate node-centric retriever on small sample (Seager)
-- [ ] Validate path-centric retriever on small sample (Cory)
-- [ ] Validate subgraph-centric retriever on small sample (Reade)
-- [ ] Validate hybrid retriever on small sample (Reade)
-- [ ] Sanity check: all strategies perform non-trivially on 1-hop queries
+- [x] Build shared FAISS index to avoid redundant encoding (`src/retrievers/shared_index.py`)
+- [x] Validate node-centric retriever on 50 samples — Hit@10=0.38, MRR=0.241
+- [x] Validate path-centric retriever on 50 samples — Hit@10=0.46, MRR=0.272
+- [x] Validate subgraph-centric retriever on 50 samples — Hit@10=0.48, MRR=0.260
+- [x] Validate hybrid retriever on 50 samples — Hit@10=0.48, MRR=0.259
+- [x] Sanity check: all strategies perform non-trivially (Hit@1 >= 0.16)
 - [ ] Run end-to-end test: retriever -> LLM -> answer on 50 samples
 
 ## Phase 3: Phase Transition Experiments (Weeks 3-4)

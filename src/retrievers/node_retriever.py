@@ -3,11 +3,8 @@
 Reference: Baseline approach from GRAG (2024).
 """
 
-import numpy as np
-import faiss
-from sentence_transformers import SentenceTransformer
-
 from src.retrievers.base import BaseRetriever
+from src.retrievers.shared_index import SharedIndex
 from src.data.stark_loader import StarkGraphWrapper
 
 
@@ -18,31 +15,14 @@ class NodeRetriever(BaseRetriever):
     ignoring graph structure entirely. Serves as the baseline.
     """
 
-    def __init__(self, graph: StarkGraphWrapper, embedding_model: str = "all-MiniLM-L6-v2"):
+    def __init__(self, graph: StarkGraphWrapper, shared_index: SharedIndex):
         super().__init__(graph)
-        self.encoder = SentenceTransformer(embedding_model)
-        self.node_ids: list[int] = []
-        self.index: faiss.IndexFlatIP | None = None
-        self._build_index()
-
-    def _build_index(self):
-        """Encode all node texts and build a FAISS index."""
-        self.node_ids = sorted(self.graph.node_texts.keys())
-        texts = [self.graph.node_texts[nid] for nid in self.node_ids]
-
-        print(f"Encoding {len(texts)} node texts...")
-        embeddings = self.encoder.encode(texts, show_progress_bar=True, normalize_embeddings=True)
-        embeddings = np.array(embeddings, dtype=np.float32)
-
-        # Inner product index (cosine similarity since embeddings are normalized)
-        self.index = faiss.IndexFlatIP(embeddings.shape[1])
-        self.index.add(embeddings)
-        print(f"FAISS index built with {self.index.ntotal} vectors.")
+        self.shared = shared_index
 
     def retrieve_ids(self, query: str, top_k: int = 10) -> list[int]:
-        query_emb = self.encoder.encode([query], normalize_embeddings=True).astype(np.float32)
-        scores, indices = self.index.search(query_emb, top_k)
-        return [self.node_ids[idx] for idx in indices[0]]
+        query_emb = self.shared.encode_query(query)
+        _, node_ids = self.shared.search(query_emb, top_k)
+        return node_ids
 
     def retrieve(self, query: str, top_k: int = 10) -> str:
         node_ids = self.retrieve_ids(query, top_k)

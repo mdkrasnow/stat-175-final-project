@@ -44,6 +44,7 @@ def evaluate_retrieval(
     retriever,
     qa_dataset,
     ks: list[int] = [1, 5, 10],
+    max_samples: int | None = None,
 ) -> dict[str, float]:
     """Run retrieval evaluation over a full QA dataset.
 
@@ -51,6 +52,7 @@ def evaluate_retrieval(
         retriever: A BaseRetriever instance.
         qa_dataset: STaRK QA dataset.
         ks: Values of k for Hit@k.
+        max_samples: If set, only evaluate on the first N samples.
 
     Returns:
         Dictionary of metric_name -> score.
@@ -58,7 +60,8 @@ def evaluate_retrieval(
     hit_scores = {k: [] for k in ks}
     mrr_scores = []
 
-    for i in range(len(qa_dataset)):
+    n = len(qa_dataset) if max_samples is None else min(max_samples, len(qa_dataset))
+    for i in range(n):
         query, query_id, gold_ids, meta = qa_dataset[i]
         predicted_ids = retriever.retrieve_ids(query, top_k=max(ks))
 

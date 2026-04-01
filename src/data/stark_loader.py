@@ -17,28 +17,32 @@ class StarkGraphWrapper:
     def _build_networkx_graph(self) -> nx.Graph:
         """Convert the STaRK SKB into a NetworkX graph."""
         G = nx.Graph()
-
-        # Add nodes with their text attributes
         num_nodes = self.skb.num_nodes()
-        for node_id in range(num_nodes):
-            node_info = self.skb.get_doc_info(node_id, add_rel=False)
-            G.add_node(node_id, text=node_info)
 
-        # Add edges from the edge index
-        edge_index = self.skb.edge_index  # [2, num_edges] tensor
+        # Add all nodes at once
+        G.add_nodes_from(range(num_nodes))
+
+        # Add edges in bulk from edge_index tensor
+        edge_index = self.skb.edge_index
         if edge_index is not None:
-            for i in range(edge_index.shape[1]):
-                src = edge_index[0, i].item()
-                dst = edge_index[1, i].item()
-                G.add_edge(src, dst)
+            # Convert to numpy and transpose for edge list: [(src, dst), ...]
+            edges = edge_index.numpy().T
+            G.add_edges_from(edges.tolist())
 
+        print(f"  Built graph: {G.number_of_nodes()} nodes, {G.number_of_edges()} edges")
         return G
 
     def _extract_node_texts(self) -> dict[int, str]:
-        """Extract text descriptions for each node."""
+        """Extract text descriptions for each node (lazy — loads on demand)."""
+        print(f"  Extracting node texts for {self.graph.number_of_nodes()} nodes...")
         texts = {}
-        for node_id in self.graph.nodes():
-            texts[node_id] = self.graph.nodes[node_id].get("text", "")
+        for node_id in range(self.skb.num_nodes()):
+            try:
+                texts[node_id] = self.skb.get_doc_info(node_id, add_rel=False)
+            except Exception:
+                texts[node_id] = ""
+            if (node_id + 1) % 25000 == 0:
+                print(f"    ...processed {node_id + 1} nodes")
         return texts
 
     def get_neighbors(self, node_id: int, k_hops: int = 1) -> set[int]:

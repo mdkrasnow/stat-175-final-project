@@ -1,0 +1,14 @@
+{
+  "dataset": "prime",
+  "num_nodes": 129375,
+  "num_edges": 4049642,
+  "density": 0.0004838929101106637,
+  "mean_degree": 62.603161352657004,
+  "median_degree": 4.0,
+  "max_degree": 17355,
+  "avg_clustering": 0.07873977219444267,
+  "num_components": 1,
+  "largest_component_size": 129375,
+  "largest_component_pct": 100.0,
+  "approx_diameter": 15
+}

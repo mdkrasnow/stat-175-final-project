@@ -6,8 +6,7 @@ Reference: MoR (2025) — Mixture of Structural-and-Textual Retrieval.
 import numpy as np
 
 from src.retrievers.base import BaseRetriever
-from src.retrievers.node_retriever import NodeRetriever
-from src.retrievers.subgraph_retriever import SubgraphRetriever
+from src.retrievers.shared_index import SharedIndex
 from src.data.stark_loader import StarkGraphWrapper
 
 
@@ -21,47 +20,43 @@ class HybridRetriever(BaseRetriever):
     def __init__(
         self,
         graph: StarkGraphWrapper,
-        embedding_model: str = "all-MiniLM-L6-v2",
+        shared_index: SharedIndex,
         text_weight: float = 0.5,
         num_seeds: int = 3,
-        k_hops: int = 2,
+        k_hops: int = 1,
     ):
         super().__init__(graph)
+        self.shared = shared_index
         self.text_weight = text_weight
         self.struct_weight = 1.0 - text_weight
-
-        # Reuse the node retriever for textual scores
-        self.node_retriever = NodeRetriever(graph, embedding_model)
-        # Reuse the subgraph retriever for structural expansion
-        self.subgraph_retriever = SubgraphRetriever(
-            graph, embedding_model, num_seeds, k_hops
-        )
+        self.num_seeds = num_seeds
+        self.k_hops = k_hops
 
     def retrieve_ids(self, query: str, top_k: int = 10) -> list[int]:
-        # Get textual scores for all nodes
-        query_emb = self.node_retriever.encoder.encode(
-            [query], normalize_embeddings=True
-        ).astype(np.float32)
-        text_scores, text_indices = self.node_retriever.index.search(query_emb, top_k * 5)
+        query_emb = self.shared.encode_query(query)
 
+        # Textual scores: top candidates by embedding similarity
+        text_scores, text_indices = self.shared.index.search(query_emb, top_k * 5)
         text_score_map = {}
         for score, idx in zip(text_scores[0], text_indices[0]):
-            nid = self.node_retriever.node_ids[idx]
+            nid = self.shared.node_ids[idx]
             text_score_map[nid] = float(score)
 
-        # Get structurally relevant nodes via subgraph expansion
-        seeds = self.subgraph_retriever._get_seed_nodes(query)
-        expanded = self.subgraph_retriever._expand_subgraph(seeds)
+        # Structural: expand seeds by k hops
+        _, seed_ids = self.shared.search(query_emb, self.num_seeds)
+        seed_set = set(seed_ids)
+        expanded = set(seed_ids)
+        for seed in seed_ids:
+            neighbors = self.graph.get_neighbors(seed, self.k_hops)
+            expanded.update(neighbors)
 
-        # Structural score: 1.0 for seeds, decays by distance
+        # Structural score: 1.0 for seeds, 0.5 for 1-hop, 0.25 otherwise
         struct_score_map = {}
-        seed_set = set(seeds)
         for nid in expanded:
             if nid in seed_set:
                 struct_score_map[nid] = 1.0
             else:
-                # Simple decay: 1-hop neighbors get 0.5, further gets 0.25
-                for seed in seeds:
+                for seed in seed_ids:
                     if self.graph.graph.has_edge(nid, seed):
                         struct_score_map[nid] = max(struct_score_map.get(nid, 0), 0.5)
                         break
