@@ -1,14 +1,19 @@
 # Project TODO
 
-**Hypothesis:** Path-based and subgraph-based retrieval outperform node-based retrieval on queries requiring multi-hop relational reasoning in text-rich knowledge graphs, and hybrid (structural + textual) retrieval outperforms any single strategy.
+**Track 2: Theoretical & Exploratory Research — Experimental Proof of Concept**
 
-**Goal:** Systematically benchmark node-centric, path-centric, subgraph-centric, and hybrid retrieval strategies on STaRK to determine which best supports multi-hop reasoning in GraphRAG.
+**Research Question:** Does a phase transition exist in GraphRAG retrieval performance as query complexity (hop count) increases, where text-only retrieval suffices for simple queries but graph-structural retrieval becomes necessary beyond a critical complexity threshold *h\**?
+
+**Hypotheses:**
+1. For 1-hop queries, node-centric (text-only) retrieval matches structural methods.
+2. There exists a critical hop count *h\** beyond which structural retrieval significantly outperforms text-only.
+3. The phase transition location depends on graph properties (density, degree distribution).
 
 ---
 
 ## Phase 1: Data & Infrastructure (Week 1)
 
-- [x] Select dataset: STaRK benchmark (PrimeKG as primary, Amazon as secondary)
+- [x] Select dataset: STaRK benchmark (PrimeKG primary, Amazon secondary)
 - [x] Write STaRK data loader with NetworkX graph wrapper (`src/data/stark_loader.py`)
 - [x] Set up evaluation harness with Hit@1, Hit@5, Hit@10, MRR (`src/evaluation/metrics.py`)
 - [x] Set up frozen LLM generation wrapper (`src/generation/llm.py`)
@@ -19,43 +24,58 @@
 - [ ] Clone MoR repo as reference (`git clone https://github.com/Yoega/MoR.git`)
 - [ ] Clone GRAG repo as reference (`git clone https://github.com/HuieL/GRAG.git`)
 - [ ] Set up API keys (OpenAI or Anthropic) for frozen LLM
+- [ ] **Characterize graph properties**: degree distribution, diameter, clustering coefficient
+- [ ] **Stratify QA pairs by hop count**: compute shortest path from query entity to answer entity in KG, bin into 1-hop, 2-hop, 3-hop, 4+
+- [ ] **Verify statistical power**: ensure sufficient samples per hop-count bin (target n >= 50 per bin)
 
-## Phase 2: Implement Three Retrieval Strategies (Weeks 2-3)
+## Phase 2: Implement Retrieval Strategies (Weeks 2-3)
 
 - [x] Node-centric retriever — scaffold (`src/retrievers/node_retriever.py`)
 - [x] Path-centric retriever — scaffold (`src/retrievers/path_retriever.py`)
 - [x] Subgraph-centric retriever — scaffold (`src/retrievers/subgraph_retriever.py`)
+- [x] Hybrid retriever — scaffold (`src/retrievers/hybrid_retriever.py`)
 - [ ] Validate node-centric retriever on small sample (Seager)
 - [ ] Validate path-centric retriever on small sample (Cory)
 - [ ] Validate subgraph-centric retriever on small sample (Reade)
-- [ ] Tune node retriever: experiment with top-k values, embedding models
-- [ ] Tune path retriever: experiment with num_seeds, max_path_length
-- [ ] Tune subgraph retriever: experiment with num_seeds, k_hops
+- [ ] Validate hybrid retriever on small sample (Reade)
+- [ ] Sanity check: all strategies perform non-trivially on 1-hop queries
 - [ ] Run end-to-end test: retriever -> LLM -> answer on 50 samples
 
-## Phase 3: Hybrid / MoR Baseline (Week 3)
+## Phase 3: Phase Transition Experiments (Weeks 3-4)
 
-- [x] Hybrid retriever — scaffold (`src/retrievers/hybrid_retriever.py`)
-- [ ] Validate hybrid retriever on small sample (Reade)
-- [ ] Tune text_weight parameter (sweep 0.0 to 1.0)
-- [ ] Compare hybrid vs individual strategies on dev set
+- [ ] Run all 4 strategies on each hop-count stratum (1, 2, 3, 4+)
+- [ ] Record per-query results (not just aggregates) for paired tests
+- [ ] Hyperparameter sweep per strategy to ensure fair comparison:
+  - [ ] Node: top-k values, embedding models
+  - [ ] Path: num_seeds, max_path_length
+  - [ ] Subgraph: num_seeds, k_hops
+  - [ ] Hybrid: text_weight (sweep 0.0 to 1.0)
+- [ ] Report best configuration per strategy
+- [ ] Repeat full experiment on STaRK-Amazon for generalization
 
-## Phase 4: Evaluation & Analysis (Week 4)
+## Phase 4: Statistical Analysis (Week 4)
 
-- [ ] Run full retrieval evaluation on STaRK-PrimeKG (all 4 strategies)
-- [ ] Run full retrieval evaluation on STaRK-Amazon (all 4 strategies)
-- [ ] Break down results by query hop count (1-hop, 2-hop, 3-hop)
+- [ ] Plot Hit@k and MRR as function of hop count for each strategy (main figure)
+- [ ] Estimate crossover point *h\** via curve fitting
+- [ ] Logistic regression: strategy × hop-count interaction on Hit@1
+- [ ] Paired bootstrap tests at each hop count (node vs path, node vs subgraph, node vs hybrid)
+- [ ] Cohen's d effect sizes: structural vs text-only at each hop count
 - [ ] Ablation: effect of subgraph size (k-hop depth)
 - [ ] Ablation: effect of path length
-- [ ] Ablation: effect of number of retrieved nodes (top-k)
-- [ ] Qualitative failure case analysis (10-20 examples per strategy)
-- [ ] Statistical significance tests (paired bootstrap)
-- [ ] Generate comparison tables and figures
+- [ ] Ablation: effect of top-k budget
+- [ ] Correlate performance gap with local graph properties (degree, clustering around query entities)
+- [ ] Qualitative failure case analysis (10-20 examples per strategy per hop count)
+- [ ] Generate all comparison tables and figures
 
 ## Phase 5: Write-Up (Week 5)
 
-- [ ] Frame results around the three research questions
-- [ ] Discuss when graph structure helps vs hurts (connect to GraphFlow findings)
-- [ ] Compare our results to MoR and GRAG reported numbers
-- [ ] Write recommendations for practitioners
+- [ ] Introduction: frame as phase transition characterization in GraphRAG
+- [ ] Related work: position relative to GRAG, MoR, GraphFlow
+- [ ] Experimental design section: independent/dependent variables, controls, statistical methods
+- [ ] Results: crossover curves, significance tests, effect sizes
+- [ ] Discussion: when should practitioners use structural retrieval?
+- [ ] Connect to MoR's "uneven performance across query logics"
+- [ ] Connect to GraphFlow's retrieval fidelity critique
+- [ ] Limitations and future work
 - [ ] Final paper draft
+- [ ] Prepare defense presentation

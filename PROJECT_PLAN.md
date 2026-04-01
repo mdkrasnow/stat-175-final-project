@@ -1,4 +1,6 @@
-# Benchmarking Retrieval Strategies for GraphRAG on Text-Rich Knowledge Graphs
+# Phase Transition in Graph Retrieval: When Does Structure Beat Text for Multi-Hop Reasoning?
+
+**Track 2: Theoretical & Exploratory Research — Experimental Proof of Concept**
 
 ## Project Members
 - Matt Krasnow
@@ -6,109 +8,117 @@
 - Cory Wu
 - Reade Park
 
-## Project Goal
+## Research Question
 
-Systematically compare **node-centric**, **path-centric**, and **subgraph-centric** retrieval strategies over text-rich knowledge graphs (KGs) to determine which approach best supports multi-hop relational reasoning in retrieval-augmented generation (RAG). The project directly addresses three research questions:
+**Does a phase transition exist in GraphRAG retrieval performance as query complexity (hop count) increases, where text-only retrieval suffices for simple queries but graph-structural retrieval becomes necessary beyond a critical complexity threshold?**
 
-1. Does path-based or subgraph-based retrieval outperform node-based retrieval on queries that require multi-hop relational reasoning in text-rich knowledge graphs?
-2. How does retrieval/sampling strategy over a knowledge graph affect answer quality in GraphRAG?
-3. Compare node-centric, path-centric, and subgraph-centric retrieval on text-rich KGs.
+We hypothesize that:
+1. For 1-hop queries, node-centric (text-only) retrieval performs comparably to structural methods — graph structure provides no benefit.
+2. There exists a critical hop count *h\** beyond which structural retrieval (path or subgraph) significantly outperforms text-only retrieval — a **phase transition** in retrieval effectiveness.
+3. The location of this phase transition *h\** depends on graph properties (density, degree distribution, textual richness).
 
-## Key Papers & Their Roles
+This is an exhaustive experimental study characterizing this phase transition, inspired by but distinct from the three foundational papers below.
 
-1. **GRAG: Graph Retrieval-Augmented Generation (2024)** — Introduces graph retrieval-augmented generation with subgraph-based retrieval. Provides the baseline subgraph retrieval method and the core idea of using graph structure to improve RAG. ([arXiv](https://arxiv.org/abs/2405.16506), [GitHub](https://github.com/HuieL/GRAG))
+## Foundational Papers
 
-2. **Mixture of Structural-and-Textual Retrieval over Text-rich Graph Knowledge Bases (MoR, 2025)** — Proposes a *Mixture of Retrieval* approach combining structural (graph topology) and textual (semantic similarity) signals over text-rich KGs. Provides the framework for hybrid retrieval and the text-rich KG setting the research questions target. ([arXiv](https://arxiv.org/abs/2502.20317), [GitHub](https://github.com/Yoega/MoR))
+1. **GRAG: Graph Retrieval-Augmented Generation (2024)** — Introduces subgraph-based retrieval for RAG. Demonstrates that graph structure improves generation quality, but does not characterize *when* or *why* structure matters as a function of query complexity. ([arXiv](https://arxiv.org/abs/2405.16506), [GitHub](https://github.com/HuieL/GRAG))
 
-3. **GraphFlow: Can Knowledge-Graph-based Retrieval Augmented Generation Really Retrieve What You Need? (2025)** — Critically examines whether KG-based RAG actually retrieves what's needed, introducing flow-based retrieval analysis. Provides evaluation methodology and the path-based retrieval perspective. ([arXiv](https://arxiv.org/abs/2510.16582), [GitHub — code not yet released](https://github.com/Samyu0304/GraphFlow))
+2. **Mixture of Structural-and-Textual Retrieval over Text-rich Graph Knowledge Bases (MoR, 2025)** — Proposes mixing structural and textual signals with a learned weight. Reports "uneven retrieving performance across different query logics" but does not formally characterize this unevenness as a function of hop count. ([arXiv](https://arxiv.org/abs/2502.20317), [GitHub](https://github.com/Yoega/MoR))
 
-## Dataset Decision: STaRK Benchmark
+3. **GraphFlow: Can Knowledge-Graph-based Retrieval Augmented Generation Really Retrieve What You Need? (2025)** — Critically examines retrieval fidelity in GraphRAG. Shows that existing methods often fail to retrieve what's needed, but focuses on a single flow-based solution rather than characterizing the failure boundary. ([arXiv](https://arxiv.org/abs/2510.16582), [GitHub — code not yet released](https://github.com/Samyu0304/GraphFlow))
 
-After investigating all three papers' datasets and repos, we chose the **STaRK benchmark** (Stanford's Semi-structured Retrieval Benchmark on Textual and Relational Knowledge Bases).
+**Our contribution:** None of these papers systematically vary query complexity to identify *where* text-only retrieval breaks down and structural retrieval becomes necessary. We fill this gap with a controlled experiment that isolates hop count as the independent variable and characterizes the resulting phase transition.
 
-### Why STaRK
+## Experimental Design
 
-- **Used by 2 of 3 papers** — both MoR and GraphFlow evaluate on STaRK, making results directly comparable to the literature
-- **Easiest setup** — `pip install stark-qa`, data auto-downloads from HuggingFace
-- **Text-rich KGs** — nodes have textual descriptions + relational graph structure, exactly matching our research questions
-- **Clean Python API** — `load_skb('prime')`, `load_qa('prime')`
-- **Train/val/test splits provided**
+### Independent Variable
+- **Query hop count** (1, 2, 3, 4+): The number of relational hops required to answer the query. We stratify STaRK's QA pairs by the shortest path length between query entity and answer entity in the ground-truth KG.
 
-### STaRK Datasets
-
-| Dataset | Domain | Processing Time | Notes |
+### Conditions (Retrieval Strategies)
+| Strategy | Type | Description | Paper Reference |
 |---|---|---|---|
-| **STaRK-PrimeKG** | Biomedical (drugs, diseases, genes) | ~5 minutes | **Start here** — fastest to iterate on |
-| **STaRK-Amazon** | E-commerce / product search | ~1 hour | Good second domain for generalization |
-| **STaRK-MAG** | Academic papers (Microsoft Academic Graph) | ~1 hour | Largest, use if time permits |
+| **Node-centric** | Text-only | Top-k nodes by embedding similarity | GRAG baseline |
+| **Path-centric** | Structural | Reasoning paths between seed entities | GraphFlow |
+| **Subgraph-centric** | Structural | k-hop neighborhood expansion from seeds | GRAG + MoR |
+| **Hybrid** | Mixed | Weighted combination of text + structural scores | MoR |
 
-### Alternatives Considered
+### Dependent Variables
+- **Hit@1, Hit@5, Hit@10** — retrieval accuracy
+- **MRR** — mean reciprocal rank
+- **EM, Token F1** — generation quality (via frozen LLM)
 
-| Dataset | Paper | Why Not |
-|---|---|---|
-| ExplaGraphs | GRAG | Tiny graphs (~5 nodes) — not real KGs, poor fit for multi-hop reasoning |
-| WebQSP | GRAG | Heavy preprocessing (SentenceBERT + PyTorch Geometric + subgraph caching), fragile dependency chain |
+### Controls
+- Same frozen LLM (GPT-4o-mini) across all conditions
+- Same embedding model (all-MiniLM-L6-v2) for all retrievers
+- Same top-k budget across strategies at each comparison point
 
-### Repo Availability
+### Statistical Methodology
+- **Paired bootstrap tests** for pairwise strategy comparisons at each hop count
+- **Interaction analysis**: strategy x hop-count interaction via logistic regression on Hit@1
+- **Crossover point estimation**: fit performance curves per strategy as a function of hop count; estimate *h\** where structural methods first significantly outperform text-only
+- **Effect size**: Cohen's d at each hop count to quantify the practical significance of structural retrieval
+
+## Dataset: STaRK Benchmark
+
+| Dataset | Domain | Processing Time | Role |
+|---|---|---|---|
+| **STaRK-PrimeKG** | Biomedical (drugs, diseases, genes) | ~5 minutes | **Primary** — fast iteration, rich multi-hop structure |
+| **STaRK-Amazon** | E-commerce / product search | ~1 hour | **Secondary** — test generalization across domains |
+| **STaRK-MAG** | Academic papers | ~1 hour | **Tertiary** — use if time permits |
+
+**Why STaRK:** Used by 2 of 3 papers (MoR, GraphFlow), publicly available via `pip install stark-qa`, text-rich nodes with relational structure, train/val/test splits provided.
+
+### Repo References
 
 | Repo | Status | Our Use |
 |---|---|---|
-| **[MoR](https://github.com/Yoega/MoR)** | Complete with pretrained checkpoints | Clone — reference for hybrid baseline, structural+textual retrieval on STaRK |
-| **[GRAG](https://github.com/HuieL/GRAG)** | Complete but heavy (Llama-2, 4x GPUs, PyG) | Clone for reference only — read subgraph retrieval code |
-| **[GraphFlow](https://github.com/Samyu0304/GraphFlow)** | Empty repo, code not released | Do not clone — read the paper for path-based methodology |
-
-### LLM Strategy
-
-Use a **frozen API model** (GPT-4o-mini or Claude) rather than local Llama. This:
-- Eliminates GPU requirements
-- Lets us focus on retrieval quality (the actual research question)
-- Ensures identical generation across all retrieval strategies
+| **[MoR](https://github.com/Yoega/MoR)** | Complete with pretrained checkpoints | Reference for hybrid baseline |
+| **[GRAG](https://github.com/HuieL/GRAG)** | Complete but heavy (Llama-2, 4x GPUs) | Reference for subgraph retrieval code |
+| **[GraphFlow](https://github.com/Samyu0304/GraphFlow)** | Empty repo, code not released | Read paper only for path-based methodology |
 
 ## Implementation Plan
 
 ### Phase 1: Data & Infrastructure (Week 1)
-- Install `stark-qa` and verify data loading with STaRK-PrimeKG
-- Build a shared KG loading pipeline — load STaRK's semi-structured KB into NetworkX for graph operations + FAISS for text embeddings
-- Set up the evaluation harness — use STaRK's QA pairs with standard metrics (Hit@1, Hit@5, MRR)
-- Clone MoR and GRAG repos as reference implementations
+- Load STaRK-PrimeKG and characterize its graph properties (degree distribution, diameter, clustering)
+- **Stratify QA pairs by hop count** — compute shortest path from query entity to answer entity; bin into 1-hop, 2-hop, 3-hop, 4+ categories
+- Verify sufficient sample size per hop-count bin for statistical power
+- Set up evaluation harness with retrieval + generation metrics
 
-### Phase 2: Implement Three Retrieval Strategies (Weeks 2-3)
-Each team member (or pair) owns one strategy:
+### Phase 2: Implement Retrieval Strategies (Weeks 2-3)
+- Implement and validate all four retrievers (node, path, subgraph, hybrid)
+- Each retriever takes a query → returns context string → frozen LLM generates answer
+- Sanity check: all strategies should perform non-trivially on 1-hop queries
 
-| Strategy | Description | Primary Paper Reference |
-|---|---|---|
-| **Node-centric** | Retrieve top-k nodes by embedding similarity to the query; concatenate their text as context | Baseline from GRAG |
-| **Path-centric** | Retrieve reasoning paths (chains of entities/relations) connecting query entities to candidate answers | GraphFlow's flow-based retrieval |
-| **Subgraph-centric** | Extract a local subgraph around query entities (e.g., k-hop neighborhood or PPR-based); serialize as context | GRAG's subgraph method + MoR's structural retrieval |
+### Phase 3: Phase Transition Experiments (Week 3-4)
+- Run all 4 strategies on each hop-count stratum
+- Record per-query results (not just aggregates) for paired statistical tests
+- Sweep hyperparameters per strategy (top-k, k_hops, path_length, text_weight) — report best configuration per strategy to ensure fair comparison
+- Repeat on STaRK-Amazon to test generalization
 
-- Each retriever takes a query and returns a context string
-- Feed each context into the **same frozen LLM** (GPT-4o-mini or Claude) to isolate retrieval quality from generation quality
-
-### Phase 3: Hybrid / MoR Baseline (Week 3)
-- Implement MoR's mixture approach: combine structural retrieval scores with textual similarity scores
-- This serves as a fourth condition and directly tests whether mixing modalities outperforms pure strategies
-
-### Phase 4: Evaluation & Analysis (Week 4)
-- **Quantitative**: Compare all strategies on multi-hop QA accuracy (Hit@1, Hit@5, MRR), varying hop count (1-hop, 2-hop, 3-hop)
-- **Qualitative**: Analyze failure cases — when does each strategy retrieve irrelevant context? (Ties to GraphFlow's critique)
-- **Ablations**:
-  - Effect of subgraph size (k-hop depth)
-  - Effect of path length
-  - Effect of number of retrieved nodes
-- **Statistical testing**: Significance tests across strategies (paired bootstrap or similar)
+### Phase 4: Statistical Analysis (Week 4)
+- **Phase transition characterization**:
+  - Plot Hit@k and MRR as a function of hop count for each strategy
+  - Identify crossover point *h\** via curve fitting
+  - Test strategy x hop-count interaction (logistic regression)
+- **Pairwise comparisons**: paired bootstrap at each hop count
+- **Effect sizes**: Cohen's d for structural vs text-only at each hop count
+- **Ablations**: subgraph size, path length, top-k budget
+- **Graph property analysis**: correlate performance gaps with local graph properties (degree, clustering coefficient around query entities)
 
 ### Phase 5: Write-Up (Week 5)
-- Frame results around the three research questions
-- Discuss when graph structure helps vs. hurts (connecting to GraphFlow's findings)
-- Propose recommendations for practitioners choosing a GraphRAG retrieval strategy
+- Frame as phase transition characterization
+- Present crossover curves and statistical evidence for *h\**
+- Discuss implications: when should practitioners use structural retrieval?
+- Connect findings to MoR's "uneven performance across query logics" and GraphFlow's retrieval fidelity critique
+- Discuss limitations and future work
 
-## Suggested Team Division
+## Team Division
 
 | Member | Primary Responsibility |
 |---|---|
-| **Matt Krasnow** | Infrastructure, KG pipeline, evaluation harness |
-| **Seager Hunt** | Node-centric retrieval + baseline experiments |
-| **Cory Wu** | Path-centric retrieval (GraphFlow-inspired) |
-| **Reade Park** | Subgraph-centric retrieval (GRAG-inspired) + MoR hybrid |
+| **Matt Krasnow** | Infrastructure, data pipeline, hop-count stratification, statistical analysis |
+| **Seager Hunt** | Node-centric retriever + baseline experiments |
+| **Cory Wu** | Path-centric retriever (GraphFlow-inspired) + path length ablations |
+| **Reade Park** | Subgraph-centric retriever (GRAG-inspired) + hybrid (MoR) + structural ablations |
 
-All members collaborate on evaluation and write-up.
+All members collaborate on phase transition analysis and write-up.
