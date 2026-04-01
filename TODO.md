@@ -44,8 +44,8 @@
 
 ## Phase 3: Phase Transition Experiments (Weeks 3-4)
 
-- [ ] Run all 4 strategies on each hop-count stratum (1, 2, 3, 4+)
-- [ ] Record per-query results (not just aggregates) for paired tests
+- [x] Run all 4 strategies on each hop-count stratum (1-hop through 6+) — n=11,204
+- [x] Record per-query results for paired tests (`prime_perquery_*.json`)
 - [ ] Hyperparameter sweep per strategy to ensure fair comparison:
   - [ ] Node: top-k values, embedding models
   - [ ] Path: num_seeds, max_path_length
@@ -56,17 +56,17 @@
 
 ## Phase 4: Statistical Analysis (Week 4)
 
-- [ ] Plot Hit@k and MRR as function of hop count for each strategy (main figure)
+- [x] Plot Hit@k and MRR as function of hop count for each strategy (`prime_phase_transition.png`)
 - [ ] Estimate crossover point *h\** via curve fitting
-- [ ] Logistic regression: strategy × hop-count interaction on Hit@1
-- [ ] Paired bootstrap tests at each hop count (node vs path, node vs subgraph, node vs hybrid)
-- [ ] Cohen's d effect sizes: structural vs text-only at each hop count
+- [x] Logistic regression: strategy × hop-count interaction on Hit@1 — interaction coef = +2.09 (structural gains as hops increase)
+- [x] Paired bootstrap tests at each hop count — path-centric sig. better Hit@1 at 2-5 hop (p<0.05)
+- [x] Cohen's d effect sizes — path vs node: d=0.16-0.20 on Hit@1 at multi-hop
 - [ ] Ablation: effect of subgraph size (k-hop depth)
 - [ ] Ablation: effect of path length
 - [ ] Ablation: effect of top-k budget
 - [ ] Correlate performance gap with local graph properties (degree, clustering around query entities)
 - [ ] Qualitative failure case analysis (10-20 examples per strategy per hop count)
-- [ ] Generate all comparison tables and figures
+- [x] Generate comparison tables and phase transition figure
 
 ## Phase 5: Write-Up (Week 5)
 
