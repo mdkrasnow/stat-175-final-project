@@ -1,0 +1,31 @@
+*.pyc
+__pycache__
+.DS_Store
+.claude/
+
+# LaTeX build artifacts
+latex/*.aux
+latex/*.log
+latex/*.out
+latex/*.toc
+latex/*.bbl
+latex/*.blg
+latex/*.fdb_latexmk
+latex/*.fls
+latex/*.synctex.gz
+latex/*.synctex(busy)
+
+# Keep PDFs
+!latex/*.pdf
+
+# Reference repos (large, cloned separately)
+references/GRAG/
+references/MoR/
+
+# HuggingFace cache
+.cache/
+
+# Python
+*.egg-info/
+dist/
+build/
