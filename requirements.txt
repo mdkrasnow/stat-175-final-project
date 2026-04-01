@@ -1,0 +1,12 @@
+stark-qa>=0.1.0
+networkx>=3.0
+numpy>=1.24
+pandas>=2.0
+scikit-learn>=1.3
+faiss-cpu>=1.7
+sentence-transformers>=2.2
+openai>=1.0
+anthropic>=0.20
+tqdm>=4.65
+matplotlib>=3.7
+seaborn>=0.12
