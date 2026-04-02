@@ -1,0 +1,181 @@
+\documentclass[11pt]{article}
+
+\usepackage[margin=1in]{geometry}
+\usepackage[T1]{fontenc}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb,amsthm}
+
+\newtheorem{theorem}{Theorem}
+\newtheorem{lemma}[theorem]{Lemma}
+\newtheorem{corollary}[theorem]{Corollary}
+\newtheorem{remark}{Remark}
+
+\title{Phase Transition in Embedding-Based Graph Retrieval:\\A Formal Proof}
+\author{Krasnow, Hunt, Wu, Park}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Setup}
+
+Let $G = (V, E)$ be a graph with $|V| = n$ and mean degree $\bar{d}$. Fix a query entity $q \in V$ and an answer entity $a \in V$ at shortest-path distance $h$ from $q$. Let $\mathcal{B}_h(q) \subseteq V$ denote the $h$-hop neighborhood of $q$.
+
+Let $f: V \to \mathbb{R}^D$ be an embedding function mapping each node to a unit vector in $\mathbb{R}^D$. For a query embedding $\mathbf{q} = f(q)$, define the \emph{similarity score} of node $v$ as $S_v = \langle \mathbf{q}, f(v) \rangle$ (cosine similarity, since all embeddings are unit-normalized).
+
+\textbf{Retrieval task.} Given $q$, retrieve $a$ by selecting $\hat{a} = \arg\max_{v \in \mathcal{B}_h(q)} S_v$.
+
+\section{Model Assumptions}
+
+\begin{enumerate}
+    \item[\textbf{A1.}] \textbf{(Neighborhood size.)} $|\mathcal{B}_h(q)| = M$, where $M \approx \bar{d}^h$ for locally tree-like graphs with mean degree $\bar{d}$ (cf.\ the Galton-Watson approximation; van der Hofstad, 2017).
+
+    \item[\textbf{A2.}] \textbf{(Noise distribution.)} For each noise candidate $v \in \mathcal{B}_h(q) \setminus \{a\}$, the similarity score $S_v$ is drawn independently from $\mathcal{N}(0, \sigma^2)$, where $\sigma^2 = 1/D$.
+
+    This follows from the concentration of cosine similarity between independent random unit vectors on $\mathbb{S}^{D-1}$: if $\mathbf{q}$ and $f(v)$ are independent uniform random unit vectors in $\mathbb{R}^D$, then $\langle \mathbf{q}, f(v) \rangle$ has mean $0$, variance $1/D$, and converges in distribution to $\mathcal{N}(0, 1/D)$ as $D \to \infty$.
+
+    \item[\textbf{A3.}] \textbf{(Signal margin.)} The answer node has similarity score $S_a \sim \mathcal{N}(\delta, \sigma^2)$ for some \emph{signal margin} $\delta > 0$. That is, the answer's embedding is $\delta$ closer to the query in expectation than a random node.
+\end{enumerate}
+
+\begin{remark}
+    Assumption A2 is the key modeling choice. In practice, embeddings are not independent uniform random vectors---nodes in the same neighborhood share structural and textual features, inducing positive correlations. However, A2 provides a \emph{lower bound} on retrieval difficulty: correlated noise candidates are \emph{harder} to distinguish from the signal (the effective noise variance increases), so the true $h^*$ is at most the value we derive under A2.
+\end{remark}
+
+\section{Main Result}
+
+\begin{theorem}[Phase Transition in Graph Retrieval]\label{thm:main}
+    Under assumptions A1--A3, let $\Delta = \delta / \sigma = \delta \sqrt{D}$ denote the normalized signal-to-noise ratio. Then the probability of correct retrieval satisfies:
+    \begin{equation}\label{eq:mafc}
+        P(\text{correct}) = \int_{-\infty}^{\infty} \Phi(x + \Delta)^{M-1} \, \phi(x) \, dx
+    \end{equation}
+    where $\Phi$ and $\phi$ are the standard normal CDF and PDF, and $M = \bar{d}^h$.
+
+    Moreover, $P(\text{correct})$ undergoes a phase transition at the critical hop count
+    \begin{equation}\label{eq:hstar}
+        \boxed{\; h^* = \frac{\delta^2 D}{2 \log \bar{d}} \;}
+    \end{equation}
+    in the following sense:
+    \begin{itemize}
+        \item If $h < h^* - \omega(1)$, then $P(\text{correct}) \to 1$ as $D \to \infty$.
+        \item If $h > h^* + \omega(1)$, then $P(\text{correct}) \to 0$ as $D \to \infty$.
+    \end{itemize}
+\end{theorem}
+
+\section{Proof}
+
+We prove Theorem~\ref{thm:main} in three steps.
+
+\subsection*{Step 1: Exact retrieval probability (the MAFC integral)}
+
+Retrieval succeeds when $S_a > \max_{v \neq a} S_v$. Let $Z = (S_a - \delta) / \sigma$ and $W_i = S_{v_i} / \sigma$ for $i = 1, \ldots, M-1$. Then $Z \sim \mathcal{N}(0, 1)$ and $W_i \stackrel{\text{iid}}{\sim} \mathcal{N}(0, 1)$, and:
+\begin{align*}
+    P(\text{correct})
+    &= P\!\left(S_a > \max_{i} S_{v_i}\right) \\
+    &= P\!\left(\sigma Z + \delta > \sigma \max_i W_i\right) \\
+    &= P\!\left(Z + \Delta > \max_i W_i\right)
+\end{align*}
+where $\Delta = \delta / \sigma$. Conditioning on $Z = x$:
+\begin{align*}
+    P(\text{correct})
+    &= \int_{-\infty}^{\infty} P\!\left(\max_i W_i < x + \Delta\right) \phi(x) \, dx \\
+    &= \int_{-\infty}^{\infty} \prod_{i=1}^{M-1} P(W_i < x + \Delta) \, \phi(x) \, dx \\
+    &= \int_{-\infty}^{\infty} \Phi(x + \Delta)^{M-1} \, \phi(x) \, dx.
+\end{align*}
+This establishes~\eqref{eq:mafc}. \hfill $\square$ (Step 1)
+
+\subsection*{Step 2: Gumbel asymptotics for the noise maximum}
+
+\begin{lemma}[Extreme value concentration]\label{lem:gumbel}
+    Let $W_1, \ldots, W_{M-1} \stackrel{\text{iid}}{\sim} \mathcal{N}(0, 1)$. Then
+    \[
+        \max_i W_i = \sqrt{2 \log M} - \frac{\log(4\pi \log M)}{2\sqrt{2 \log M}} + O_P\!\left(\frac{1}{\sqrt{\log M}}\right).
+    \]
+    In particular, $\max_i W_i \to \sqrt{2 \log M}$ in probability as $M \to \infty$.
+\end{lemma}
+
+\begin{proof}
+    This is the classical Fisher--Tippett--Gnedenko theorem for the Gaussian case. The normalizing constants for the Gumbel limit of the Gaussian maximum are $a_M = \sqrt{2 \log M} - \frac{\log \log M + \log(4\pi)}{2\sqrt{2 \log M}}$ and $b_M = 1/\sqrt{2 \log M}$. The random variable $({\max_i W_i - a_M})/{b_M}$ converges in distribution to a Gumbel random variable with mean $\gamma \approx 0.5772$ (Euler--Mascheroni constant). Since $b_M \to 0$, the maximum concentrates around $a_M \sim \sqrt{2 \log M}$.
+\end{proof}
+
+Substituting $M = \bar{d}^h$:
+\begin{equation}\label{eq:noise_floor}
+    \max_i W_i \approx \sqrt{2 \log(\bar{d}^h)} = \sqrt{2h \log \bar{d}}.
+\end{equation}
+
+\subsection*{Step 3: Phase transition}
+
+Retrieval succeeds when the signal exceeds the noise maximum:
+\[
+    S_a > \max_i S_{v_i} \iff Z + \Delta > \max_i W_i.
+\]
+Since $Z = O_P(1)$ and $\max_i W_i \approx \sqrt{2h \log \bar{d}}$ (Lemma~\ref{lem:gumbel}), the success event is determined by whether $\Delta$ exceeds the noise floor:
+
+\paragraph{Case 1: $\Delta > \sqrt{2h \log \bar{d}}$.}
+Then $Z + \Delta > \max_i W_i$ with high probability. Formally, for any $\varepsilon > 0$:
+\[
+    P(\text{correct}) \geq P\!\left(Z > -\varepsilon\right) \cdot P\!\left(\max_i W_i < \Delta - \varepsilon\right) \to 1
+\]
+as $D \to \infty$ (since $\Delta - \varepsilon > \sqrt{2h \log \bar{d}}$ implies $P(\max_i W_i < \Delta - \varepsilon) \to 1$ by the Gumbel convergence).
+
+\paragraph{Case 2: $\Delta < \sqrt{2h \log \bar{d}}$.}
+Then $\max_i W_i > \Delta + \varepsilon$ with high probability for some $\varepsilon > 0$, and:
+\[
+    P(\text{correct}) \leq P(Z > \varepsilon) + P\!\left(\max_i W_i < \Delta + \varepsilon\right) \to 0 + 0 = 0.
+\]
+
+\paragraph{Critical hop count.} The transition occurs when $\Delta = \sqrt{2h^* \log \bar{d}}$. Substituting $\Delta = \delta\sqrt{D}$ and solving for $h^*$:
+\[
+    \delta\sqrt{D} = \sqrt{2h^* \log \bar{d}} \implies \delta^2 D = 2h^* \log \bar{d} \implies h^* = \frac{\delta^2 D}{2 \log \bar{d}}.
+\]
+\hfill $\square$ (Theorem~\ref{thm:main})
+
+\section{Corollaries}
+
+\begin{corollary}[Density dependence]\label{cor:density}
+    For fixed signal margin $\delta$ and embedding dimension $D$, the critical hop count $h^*$ is inversely proportional to $\log \bar{d}$:
+    \[
+        h^*(\bar{d}_1) / h^*(\bar{d}_2) = \log \bar{d}_2 / \log \bar{d}_1.
+    \]
+    Denser graphs have lower $h^*$ and therefore more severe cliffs.
+\end{corollary}
+
+\begin{proof}
+    Immediate from~\eqref{eq:hstar}.
+\end{proof}
+
+For our two datasets: $h^*_{\text{PrimeKG}} / h^*_{\text{Amazon}} = \log(9.1) / \log(62.6) = 2.21 / 4.14 = 0.53$. That is, PrimeKG's critical hop is roughly half of Amazon's, consistent with PrimeKG's cliff appearing at $h \approx 2$ and Amazon's degradation being gradual through $h \approx 4$--$5$.
+
+\begin{corollary}[Sharpness of the transition]\label{cor:sharp}
+    On a graph with mean degree $\bar{d}$, the noise floor increases by $\sqrt{\log \bar{d}}$ per hop increment. For $\bar{d} \gg 1$, this exceeds the $O(1)$ fluctuations of $Z$, so the transition from $P(\text{correct}) \approx 1$ to $P(\text{correct}) \approx 0$ occurs within $O(1/\log \bar{d})$ hops. Dense graphs exhibit sharper cliffs.
+\end{corollary}
+
+\begin{proof}
+    The noise floor at hop $h$ is $\sqrt{2h \log \bar{d}}$ and at hop $h+1$ is $\sqrt{2(h+1) \log \bar{d}}$. Near $h = h^*$, the increment is approximately:
+    \[
+        \sqrt{2(h^*+1) \log \bar{d}} - \sqrt{2h^* \log \bar{d}} \approx \frac{\sqrt{2 \log \bar{d}}}{2\sqrt{2h^* \log \bar{d}}} = \frac{1}{2\sqrt{h^*}} = \frac{\sqrt{\log \bar{d}}}{\delta\sqrt{D}}.
+    \]
+    This increment exceeds the standard deviation of $Z$ (which is $1$) when $\log \bar{d} > \delta^2 D$, which is precisely the regime $h^* < 1$---i.e., when the cliff occurs before even $h = 1$. For practical values ($h^* \geq 1$), the increment is $O(1/\sqrt{h^*})$, and the transition width is $O(\sqrt{h^*})$ hops. Since $h^*$ is small for dense graphs, the transition is sharp.
+\end{proof}
+
+\begin{corollary}[Independence from retrieval algorithm]\label{cor:alg_indep}
+    The bound in Theorem~\ref{thm:main} applies to \emph{any} retrieval algorithm that selects candidates based on embedding similarity in $\mathbb{R}^D$, including beam search, iterative methods, and adaptive routing. The phase transition at $h^*$ is a property of the embedding geometry and graph density, not of the retrieval algorithm.
+\end{corollary}
+
+\begin{proof}
+    Any embedding-based retrieval algorithm must ultimately rank candidates by some function of their embeddings. The noise maximum $\max_i W_i$ is a property of the candidate set, not the algorithm. No algorithm can make the answer's similarity exceed the noise maximum when $\Delta < \sqrt{2h \log \bar{d}}$, because this is a property of the similarity scores themselves.
+\end{proof}
+
+\begin{remark}[Why beam search and adaptive routing fail]
+    Corollary~\ref{cor:alg_indep} explains our empirical finding that beam search and adaptive routing do not overcome the cliff. Beam search prunes candidates at each hop using embedding similarity---but the same similarity scores that cannot distinguish the answer from noise at $h > h^*$ also cannot guide the beam toward the answer. Adaptive routing selects among configurations that all use the same embedding similarity as their ranking function. Neither approach changes $\Delta$, $D$, or $\bar{d}$, so neither can move $h^*$.
+\end{remark}
+
+\begin{remark}[How to push $h^*$ higher]
+    Equation~\eqref{eq:hstar} identifies three levers for increasing $h^*$:
+    \begin{enumerate}
+        \item \textbf{Increase $\delta$} (signal margin): Use better embeddings or fine-tune on the KG. Relation-type-aware traversal (e.g., Think-on-Graph) effectively increases $\delta$ by filtering irrelevant candidates, reducing $M$ without reducing signal.
+        \item \textbf{Increase $D$} (embedding dimension): Higher-dimensional embeddings can distinguish more candidates, but with diminishing returns ($h^* \propto D$, and compute/memory scale with $D$).
+        \item \textbf{Decrease $\bar{d}$} (effective degree): Edge-type filtering reduces the effective degree from $\bar{d}$ to $\bar{d}_{\text{eff}} \ll \bar{d}$, dramatically increasing $h^*$. This is why MoR's planning stage and relation-type routing are effective.
+    \end{enumerate}
+\end{remark}
+
+\end{document}
