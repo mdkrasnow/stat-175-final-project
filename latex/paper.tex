@@ -27,7 +27,7 @@
 \maketitle
 
 \begin{abstract}
-We investigate how retrieval strategy affects answer quality in graph retrieval-augmented generation (GraphRAG) as query complexity increases. Through a controlled experiment on the STaRK-PrimeKG benchmark (129K nodes, 4M edges, 11,204 queries), we compare four retrieval strategies---node-centric, path-centric, subgraph-centric, and hybrid---stratified by the number of relational hops required to reach the answer. We find a sharp \textit{performance cliff} from 1-hop to 2-hop queries across all strategies, rather than the gradual phase transition we hypothesized. Hit@10 drops approximately 70\% at this boundary. Logistic regression confirms a significant strategy$\times$hop-count interaction ($\beta = +2.09$), indicating structural methods gain relative advantage as complexity increases. Ablation studies reveal a fundamental focus-versus-coverage tradeoff: configurations that maximize 1-hop performance (e.g., single-seed subgraph expansion achieving Hit@10 $= 0.77$) completely fail at multi-hop, while broader configurations that help multi-hop dilute 1-hop accuracy. We argue this tradeoff, driven by the high density of real-world knowledge graphs, implies that effective GraphRAG requires query-adaptive retrieval rather than any fixed strategy.
+We investigate how retrieval strategy affects answer quality in graph retrieval-augmented generation (GraphRAG) as query complexity increases. Through a controlled experiment on the STaRK-PrimeKG benchmark (129K nodes, 4M edges, 11,204 queries), we compare six retrieval strategies---node-centric, path-centric, subgraph-centric, hybrid, beam search, and an adaptive router---stratified by the number of relational hops required to reach the answer. We find a sharp \textit{performance cliff} from 1-hop to 2-hop queries across all strategies, rather than the gradual phase transition we hypothesized. Hit@10 drops approximately 70\% at this boundary. Logistic regression confirms a significant strategy$\times$hop-count interaction ($\beta = +2.09$), indicating structural methods gain relative advantage as complexity increases. Ablation studies reveal a fundamental focus-versus-coverage tradeoff: configurations that maximize 1-hop performance (e.g., single-seed subgraph expansion achieving Hit@10 $= 0.77$) completely fail at multi-hop, while broader configurations that help multi-hop dilute 1-hop accuracy. We further show that two approaches designed to overcome the cliff---embedding-guided beam search and query-adaptive routing via score skewness---fail to do so, confirming that the cliff is a fundamental property of embedding-based retrieval on dense graphs rather than an artifact of naive implementations. We argue that overcoming this barrier requires relation-type-aware traversal, not simply better embedding-based strategies.
 \end{abstract}
 
 %----------------------------------------------------------------------
@@ -44,7 +44,8 @@ Our contributions are:
 \begin{enumerate}
     \item We characterize the \textbf{hop-count cliff}: a sharp performance boundary at 2 hops on dense text-rich KGs where all retrieval strategies collapse.
     \item We provide statistical evidence (paired bootstrap tests, logistic regression interaction analysis) that structural methods \textbf{gain relative advantage} as query complexity increases, even though absolute performance is low.
-    \item Through five ablation studies, we identify a \textbf{fundamental focus-vs-coverage tradeoff} that no single hyperparameter setting resolves, suggesting the need for query-adaptive retrieval.
+    \item Through five ablation studies, we identify a \textbf{fundamental focus-vs-coverage tradeoff} that no single hyperparameter setting resolves.
+    \item We show that two principled approaches to overcoming the cliff---\textbf{beam search} and \textbf{query-adaptive routing}---fail, demonstrating that the barrier is intrinsic to embedding-based retrieval on dense graphs and pointing toward relation-type-aware methods as the path forward.
 \end{enumerate}
 
 %----------------------------------------------------------------------
@@ -56,6 +57,8 @@ Our contributions are:
 \paragraph{Hybrid Retrieval.} \citet{yue2025mor} propose MoR (Mixture of Retrieval), which interweaves structural traversal and textual matching through a Planning-Reasoning-Organizing framework. They evaluate on STaRK~\citep{wu2024stark} and note uneven performance across query logics, motivating our systematic investigation of this unevenness.
 
 \paragraph{Retrieval Fidelity.} \citet{yu2025graphflow} critically examine whether KG-based RAG actually retrieves what is needed, introducing GraphFlow, a flow-based retrieval method. They show existing methods often fail to retrieve relevant context but focus on proposing a solution rather than characterizing when and why failure occurs.
+
+\paragraph{Iterative and Adaptive Retrieval.} \citet{sun2024tog} propose Think-on-Graph, which uses an LLM to guide beam search over a KG, selecting which edges to follow at each hop. \citet{wang2025skewroute} introduce SkewRoute, a training-free method that uses the skewness of retrieval score distributions to route queries to different processing pipelines. \citet{trivedi2023ircot} interleave retrieval with chain-of-thought reasoning, retrieving new context at each reasoning step. These approaches motivate our beam search and adaptive routing experiments.
 
 \paragraph{STaRK Benchmark.} \citet{wu2024stark} introduce STaRK, a benchmark for semi-structured retrieval over text-rich knowledge bases covering three domains (biomedical, e-commerce, academic). We use STaRK-PrimeKG as our primary evaluation setting, as it is used by both MoR and GraphFlow, enabling direct comparison.
 
@@ -125,6 +128,10 @@ We implement four retrieval strategies, each taking a natural language query and
     \item \textbf{Subgraph-centric} (inspired by GRAG~\citep{hu2024grag}): Identify seed nodes, expand by $k$ hops, cap the subgraph size via relevance-based pruning, and return nodes ranked by embedding similarity within the subgraph.
 
     \item \textbf{Hybrid} (inspired by MoR~\citep{yue2025mor}): Combine textual similarity scores and structural proximity scores with a tunable weight parameter $\alpha \in [0, 1]$.
+
+    \item \textbf{Beam search} (inspired by Think-on-Graph~\citep{sun2024tog}): Iterative hop-by-hop expansion with embedding-guided pruning. At each hop, expand all neighbors of the current beam, score by embedding similarity, and retain only the top-$b$ (beam width) nodes. This converts exponential expansion ($d^k$ for degree $d$ and $k$ hops) to linear ($b \times k$).
+
+    \item \textbf{Adaptive router} (inspired by SkewRoute~\citep{wang2025skewroute}): Compute the skewness of the top-50 embedding similarity scores for each query. High skewness indicates a focused query (one dominant seed node), routing to a focused configuration (1 seed, 1-hop expansion). Low skewness indicates a diffuse query, routing to a broad configuration (5 seeds, 2-hop expansion). This tests whether query-adaptive strategy selection can overcome the cliff.
 \end{enumerate}
 
 \subsection{Controls}
@@ -196,6 +203,59 @@ We conduct five ablation studies on a subsample of 200 queries per hop-count bin
 
 \paragraph{Ablation 5: Hybrid text weight.} The optimal mixture weight $\alpha$ shifts with query complexity: $\alpha = 0.2$ (mostly structural) is best for 1-hop (Hit@10 $= 0.57$), while $\alpha = 0.5$--$0.6$ (balanced) is best for multi-hop. Pure structural ($\alpha = 0.0$) performs worst overall, confirming that textual similarity provides essential signal even when graph structure is available.
 
+\subsection{Can the Cliff Be Avoided?}
+
+Motivated by the focus-vs-coverage tradeoff, we implement two additional strategies designed to overcome the cliff: embedding-guided beam search and query-adaptive routing.
+
+\paragraph{Beam search.} We sweep beam width $b \in \{3, 5, 10, 20\}$ and maximum hops $h \in \{1, 2, 3, 4\}$ on 200 samples per hop bin. Table~\ref{tab:beam_results} shows that beam search performs nearly identically to baselines across all configurations, with no significant improvement at any hop count.
+
+\begin{table}[h]
+\centering
+\caption{Beam search results (Hit@5 / MRR) compared to baselines. Beam width and hop depth make negligible difference.}
+\label{tab:beam_results}
+\begin{tabular}{l cc cc}
+\toprule
+& \multicolumn{2}{c}{1-hop} & \multicolumn{2}{c}{2-hop} \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+Config & Hit@5 & MRR & Hit@5 & MRR \\
+\midrule
+Node-centric (baseline) & 0.400 & 0.354 & 0.195 & 0.085 \\
+Subgraph ($k{=}1$, baseline) & \textbf{0.480} & \textbf{0.390} & 0.175 & 0.077 \\
+\midrule
+Beam ($b{=}3$, $h{=}3$) & 0.435 & 0.365 & 0.190 & 0.085 \\
+Beam ($b{=}10$, $h{=}3$) & 0.410 & 0.363 & 0.190 & 0.086 \\
+Beam ($b{=}20$, $h{=}3$) & 0.410 & 0.359 & \textbf{0.200} & \textbf{0.087} \\
+Beam ($b{=}10$, $h{=}4$) & 0.410 & 0.360 & 0.195 & 0.086 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The failure of beam search reveals the \textit{bridge entity problem}: intermediate nodes on the correct reasoning path (e.g., a gene connecting a disease to a drug) are not textually similar to the query. Embedding-guided pruning at each hop discards exactly the bridge entities needed to reach multi-hop answers.
+
+\paragraph{Adaptive routing.} We sweep the skewness threshold $\tau \in \{0.5, 1.0, 1.5, 2.0\}$, routing queries with skewness $> \tau$ to the focused configuration and the rest to the broad configuration. Table~\ref{tab:adaptive_results} shows the results.
+
+\begin{table}[h]
+\centering
+\caption{Adaptive router results. The router interpolates between focused and broad configs but score skewness does not correlate well with hop count.}
+\label{tab:adaptive_results}
+\begin{tabular}{l cc cc c}
+\toprule
+& \multicolumn{2}{c}{1-hop} & \multicolumn{2}{c}{2-hop} & \\
+\cmidrule(lr){2-3} \cmidrule(lr){4-5}
+Threshold $\tau$ & Hit@10 & MRR & Hit@10 & MRR & \% Focused (2-hop) \\
+\midrule
+0.5 (mostly focused) & \textbf{0.765} & \textbf{0.449} & 0.005 & 0.002 & 97\% \\
+1.0 & 0.720 & 0.432 & 0.075 & 0.020 & 71\% \\
+1.5 & 0.660 & 0.408 & 0.180 & 0.052 & 32\% \\
+2.0 (mostly broad) & 0.565 & 0.383 & 0.230 & 0.066 & 13\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The router reveals two problems. First, \textit{skewness does not correlate well with hop count}: at $\tau = 1.0$, 71\% of 2-hop queries are misrouted to the focused mode. The score distribution looks similar regardless of true query complexity because embedding similarity reflects topical relevance, not structural distance. Second, the router can only interpolate between the focused and broad extremes---it creates no new retrieval capability, merely blending existing ones.
+
+\paragraph{Implications.} The failure of both approaches confirms that the hop-count cliff is not an artifact of naive single-shot retrieval. Iterative expansion with embedding-guided pruning (beam search) and query-adaptive strategy selection (routing) both fail because they rely on the same underlying signal---embedding similarity---which does not capture relational reasoning. Overcoming the cliff likely requires \textit{relation-type-aware} traversal: methods that select which edge types to follow at each hop, such as Think-on-Graph's LLM-guided traversal~\citep{sun2024tog} or MoR's learned planning stage~\citep{yue2025mor}.
+
 %----------------------------------------------------------------------
 \section{Discussion}
 %----------------------------------------------------------------------
@@ -221,7 +281,14 @@ Our results provide empirical grounding for observations in the literature:
 
 \subsection{Implications}
 
-Our results suggest that effective GraphRAG on dense knowledge graphs requires \textbf{query-adaptive retrieval}: a system that estimates query complexity (e.g., the number of reasoning hops required) and adjusts its retrieval strategy accordingly. Fixed-strategy approaches will either excel at simple queries and fail at complex ones, or sacrifice simple-query performance for marginal multi-hop gains.
+Our results suggest that effective GraphRAG on dense knowledge graphs cannot be solved by better embedding-based strategies alone---whether fixed, iterative, or adaptive. The cliff persists because embedding similarity does not encode relational reasoning. Two directions appear promising:
+
+\begin{enumerate}
+    \item \textbf{Relation-type-aware traversal}: On typed KGs like PrimeKG, filtering edges by predicted relation type before expansion could reduce the effective degree from $\sim$60 to $\sim$10 per hop. Methods like Think-on-Graph~\citep{sun2024tog} and MoR's planning stage~\citep{yue2025mor} implement variants of this idea.
+    \item \textbf{Iterative retrieval-generation}: Interleaving retrieval with LLM reasoning~\citep{trivedi2023ircot} decomposes multi-hop problems into sequential single-hop retrievals, each guided by the current reasoning state. This avoids the neighborhood explosion entirely by never expanding more than one hop at a time.
+\end{enumerate}
+
+Both directions require LLM calls during retrieval, trading computational cost for reasoning capability. Whether this trade-off is worthwhile depends on the density of the target graph and the proportion of multi-hop queries.
 
 \subsection{Limitations}
 
@@ -235,9 +302,11 @@ Our hop-count stratification relies on identifying the query entity via embeddin
 \section{Conclusion}
 %----------------------------------------------------------------------
 
-We set out to find a phase transition in GraphRAG retrieval performance and found something more fundamental: a \textit{cliff}. On dense knowledge graphs, all retrieval strategies---text-only, path-based, subgraph-based, and hybrid---collapse at 2-hop queries, with no strategy able to reliably recover. The statistical evidence confirms that structural methods do gain relative advantage at higher hop counts, but the absolute performance is too low for practical use.
+We set out to find a phase transition in GraphRAG retrieval performance and found something more fundamental: a \textit{cliff}. On dense knowledge graphs, all retrieval strategies---text-only, path-based, subgraph-based, hybrid, beam search, and adaptive routing---collapse at 2-hop queries. The statistical evidence confirms that structural methods gain relative advantage at higher hop counts, but absolute performance remains too low for practical use.
 
-Through systematic ablation studies, we show that this cliff arises from a fundamental focus-versus-coverage tradeoff inherent to dense graphs. The implication is clear: the future of GraphRAG lies not in better fixed retrieval strategies but in systems that adapt their retrieval approach to the complexity of each query.
+Through systematic ablation studies, we show that this cliff arises from a fundamental focus-versus-coverage tradeoff inherent to dense graphs. Through beam search and adaptive routing experiments, we further show that the cliff is robust to principled attempts to overcome it within the embedding-based paradigm. The bridge entity problem---intermediate reasoning nodes are not textually similar to the query---renders embedding-guided traversal ineffective for multi-hop reasoning.
+
+The implication is clear: the future of multi-hop GraphRAG on dense knowledge graphs lies not in better embedding-based retrieval strategies but in \textit{relation-type-aware} methods that leverage edge semantics to guide traversal, or in iterative retrieval-generation loops that decompose multi-hop reasoning into manageable single-hop steps.
 
 %----------------------------------------------------------------------
 \bibliographystyle{plainnat}
@@ -257,6 +326,21 @@ Hu, Y., Lei, Z., Zhang, Z., Pan, B., Ling, C., and Zhao, L.
 Lewis, P., Perez, E., Piktus, A., Petroni, F., Karpukhin, V., Goyal, N., K{\"u}ttler, H., Lewis, M., Yih, W., Rockt{\"a}schel, T., et~al.
 \newblock Retrieval-augmented generation for knowledge-intensive NLP tasks.
 \newblock \textit{NeurIPS}, 2020.
+
+\bibitem[Sun et al.(2024)]{sun2024tog}
+Sun, J., Xu, C., Tang, L., Wang, S., Lin, C., Gong, Y., Shum, H., and Guo, J.
+\newblock Think-on-Graph: Deep and responsible reasoning of large language model on knowledge graph.
+\newblock \textit{ICLR}, 2024.
+
+\bibitem[Trivedi et al.(2023)]{trivedi2023ircot}
+Trivedi, H., Balasubramanian, N., Khot, T., and Sabharwal, A.
+\newblock Interleaving retrieval with chain-of-thought reasoning for knowledge-intensive multi-step questions.
+\newblock \textit{ACL}, 2023.
+
+\bibitem[Wang et al.(2025)]{wang2025skewroute}
+Wang, H., et~al.
+\newblock SkewRoute: Training-free LLM routing for KG-RAG via score skewness of retrieved context.
+\newblock \textit{Findings of EMNLP}, 2025.
 
 \bibitem[Reimers and Gurevych(2019)]{reimers2019sentence}
 Reimers, N. and Gurevych, I.
