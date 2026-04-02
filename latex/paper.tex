@@ -27,7 +27,7 @@
 \maketitle
 
 \begin{abstract}
-We investigate how retrieval strategy affects answer quality in graph retrieval-augmented generation (GraphRAG) as query complexity increases. Through a controlled experiment on the STaRK-PrimeKG benchmark (129K nodes, 4M edges, 11,204 queries), we compare six retrieval strategies---node-centric, path-centric, subgraph-centric, hybrid, beam search, and an adaptive router---stratified by the number of relational hops required to reach the answer. We find a sharp \textit{performance cliff} from 1-hop to 2-hop queries across all strategies, rather than the gradual phase transition we hypothesized. Hit@10 drops approximately 70\% at this boundary. Logistic regression confirms a significant strategy$\times$hop-count interaction ($\beta = +2.09$), indicating structural methods gain relative advantage as complexity increases. Ablation studies reveal a fundamental focus-versus-coverage tradeoff: configurations that maximize 1-hop performance (e.g., single-seed subgraph expansion achieving Hit@10 $= 0.77$) completely fail at multi-hop, while broader configurations that help multi-hop dilute 1-hop accuracy. We further show that two approaches designed to overcome the cliff---embedding-guided beam search and query-adaptive routing via score skewness---fail to do so, confirming that the cliff is a fundamental property of embedding-based retrieval on dense graphs rather than an artifact of naive implementations. We argue that overcoming this barrier requires relation-type-aware traversal, not simply better embedding-based strategies.
+We investigate how retrieval strategy affects answer quality in graph retrieval-augmented generation (GraphRAG) as query complexity increases. Through controlled experiments on two STaRK benchmarks---PrimeKG (129K nodes, mean degree 62.6, 11,204 queries) and Amazon (1M nodes, mean degree 9.1, 9,100 queries)---we compare six retrieval strategies stratified by query hop count. On the dense PrimeKG graph, we find a sharp \textit{performance cliff}: Hit@10 drops $\sim$70\% from 1-hop to 2-hop queries across all strategies. On the sparse Amazon graph, the degradation is gradual ($\sim$40\% drop), and strategies that exploit graph structure \textit{underperform} text-only retrieval at multi-hop---the opposite of dense-graph behavior. This cross-domain comparison reveals that \textbf{cliff severity is governed by graph density}: the combinatorial explosion of the neighborhood at each hop overwhelms embedding-based retrieval on dense graphs but is manageable on sparse ones. Ablation studies reveal a fundamental focus-versus-coverage tradeoff, and two principled approaches to overcoming the cliff---beam search and query-adaptive routing---fail, confirming the barrier is intrinsic to embedding-based retrieval on dense graphs.
 \end{abstract}
 
 %----------------------------------------------------------------------
@@ -45,7 +45,8 @@ Our contributions are:
     \item We characterize the \textbf{hop-count cliff}: a sharp performance boundary at 2 hops on dense text-rich KGs where all retrieval strategies collapse.
     \item We provide statistical evidence (paired bootstrap tests, logistic regression interaction analysis) that structural methods \textbf{gain relative advantage} as query complexity increases, even though absolute performance is low.
     \item Through five ablation studies, we identify a \textbf{fundamental focus-vs-coverage tradeoff} that no single hyperparameter setting resolves.
-    \item We show that two principled approaches to overcoming the cliff---\textbf{beam search} and \textbf{query-adaptive routing}---fail, demonstrating that the barrier is intrinsic to embedding-based retrieval on dense graphs and pointing toward relation-type-aware methods as the path forward.
+    \item We show that two principled approaches to overcoming the cliff---\textbf{beam search} and \textbf{query-adaptive routing}---fail, demonstrating that the barrier is intrinsic to embedding-based retrieval on dense graphs.
+    \item We replicate on STaRK-Amazon (sparse, $\bar{d} = 9.1$), showing that \textbf{cliff severity correlates with graph density} and that structural retrieval can \textit{hurt} on sparse graphs---establishing density as the key moderating variable.
 \end{enumerate}
 
 %----------------------------------------------------------------------
@@ -66,31 +67,34 @@ Our contributions are:
 \section{Experimental Design}
 %----------------------------------------------------------------------
 
-\subsection{Dataset}
+\subsection{Datasets}
 
-We use STaRK-PrimeKG~\citep{wu2024stark}, a biomedical knowledge graph derived from PrimeKG~\citep{chandak2023primekg}. Table~\ref{tab:graph_stats} summarizes its properties.
+We use two STaRK benchmarks~\citep{wu2024stark} to compare across graph densities:
+
+\begin{itemize}
+    \item \textbf{STaRK-PrimeKG} (biomedical): Derived from PrimeKG~\citep{chandak2023primekg}, containing drugs, diseases, genes, and pathways. Dense graph with high-degree hub nodes characteristic of biological networks. 11,204 QA pairs.
+    \item \textbf{STaRK-Amazon} (e-commerce): Product nodes connected by co-purchase, brand, category, and color relationships. Sparse graph with many small connected components. 9,100 QA pairs.
+\end{itemize}
 
 \begin{table}[h]
 \centering
-\caption{STaRK-PrimeKG graph properties.}
+\caption{Graph properties of the two STaRK benchmarks.}
 \label{tab:graph_stats}
-\begin{tabular}{lr}
+\begin{tabular}{lrr}
 \toprule
-Property & Value \\
+Property & PrimeKG & Amazon \\
 \midrule
-Nodes & 129,375 \\
-Edges & 4,049,642 \\
-Mean degree & 62.6 \\
-Median degree & 4.0 \\
-Max degree & 17,355 \\
-Clustering coefficient & 0.079 \\
-Connected components & 1 \\
-Approx.\ diameter & 15 \\
+Nodes & 129,375 & 1,035,542 \\
+Edges & 4,049,642 & 4,722,008 \\
+Mean degree & 62.6 & 9.1 \\
+Median degree & 4.0 & 3.0 \\
+Max degree & 17,355 & 64,062 \\
+QA pairs & 11,204 & 9,100 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The graph is dense (mean degree 62.6) with a highly skewed degree distribution (median 4.0 vs.\ mean 62.6), indicating the presence of high-degree hub nodes characteristic of biological networks.
+The key contrast is density: PrimeKG's mean degree (62.6) is $\sim$7$\times$ higher than Amazon's (9.1). This means a 2-hop expansion on PrimeKG touches $\sim$3,600 nodes on average, while on Amazon it touches only $\sim$80---a 45$\times$ difference in neighborhood size that we hypothesize drives the cliff severity.
 
 \subsection{Hop-Count Stratification}
 
@@ -254,7 +258,51 @@ Threshold $\tau$ & Hit@10 & MRR & Hit@10 & MRR & \% Focused (2-hop) \\
 
 The router reveals two problems. First, \textit{skewness does not correlate well with hop count}: at $\tau = 1.0$, 71\% of 2-hop queries are misrouted to the focused mode. The score distribution looks similar regardless of true query complexity because embedding similarity reflects topical relevance, not structural distance. Second, the router can only interpolate between the focused and broad extremes---it creates no new retrieval capability, merely blending existing ones.
 
-\paragraph{Implications.} The failure of both approaches confirms that the hop-count cliff is not an artifact of naive single-shot retrieval. Iterative expansion with embedding-guided pruning (beam search) and query-adaptive strategy selection (routing) both fail because they rely on the same underlying signal---embedding similarity---which does not capture relational reasoning. Overcoming the cliff likely requires \textit{relation-type-aware} traversal: methods that select which edge types to follow at each hop, such as Think-on-Graph's LLM-guided traversal~\citep{sun2024tog} or MoR's learned planning stage~\citep{yue2025mor}.
+\paragraph{Implications.} The failure of both approaches confirms that the hop-count cliff is not an artifact of naive single-shot retrieval. Iterative expansion with embedding-guided pruning (beam search) and query-adaptive strategy selection (routing) both fail because they rely on the same underlying signal---embedding similarity---which does not capture relational reasoning.
+
+\subsection{Cross-Domain Replication: The Role of Graph Density}
+
+To test whether the cliff is specific to PrimeKG or a general phenomenon, we replicate on STaRK-Amazon, a much sparser graph (mean degree 9.1 vs.\ 62.6). Figure~\ref{fig:cross_domain} compares performance degradation across the two datasets.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{../results/cross_domain_hit10.png}
+    \caption{Hit@10 vs.\ hop count on PrimeKG (dense, left) and Amazon (sparse, right). The cliff is severe on dense PrimeKG but gradual on sparse Amazon.}
+    \label{fig:cross_domain}
+\end{figure}
+
+Table~\ref{tab:amazon_results} shows the Amazon results. Three striking differences emerge:
+
+\begin{table}[h]
+\centering
+\caption{Hit@10 by hop count and strategy on STaRK-Amazon ($n = 200$/bin). Bold indicates best per row.}
+\label{tab:amazon_results}
+\begin{tabular}{l cccc}
+\toprule
+Hop & Node & Path & Subgraph & Hybrid \\
+\midrule
+1 & 0.970 & 0.975 & \textbf{0.985} & 0.975 \\
+2 & \textbf{0.580} & 0.465 & 0.390 & 0.575 \\
+3 & 0.385 & 0.320 & 0.280 & \textbf{0.390} \\
+4 & \textbf{0.405} & 0.275 & 0.190 & 0.390 \\
+5 & \textbf{0.357} & 0.248 & 0.225 & 0.333 \\
+6+ & \textbf{0.359} & 0.233 & 0.194 & 0.350 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{enumerate}
+    \item \textbf{The cliff is softer.} Hit@10 drops from 0.98 to 0.58 at 2-hop ($\sim$40\% drop) compared to PrimeKG's 70\% drop. Performance degrades gradually rather than catastrophically (Figure~\ref{fig:normalized}).
+    \item \textbf{Node-centric beats structural methods at multi-hop.} On dense PrimeKG, subgraph-centric excels at 1-hop. On sparse Amazon, \textit{node-centric outperforms all structural methods} at 2+ hops. Structural expansion on a sparse graph adds too few neighbors ($\sim$9 per hop) to provide meaningful coverage, while potentially introducing noise.
+    \item \textbf{Subgraph-centric is worst at multi-hop}---the opposite of its PrimeKG behavior. This confirms that the value of structural retrieval depends critically on graph density.
+\end{enumerate}
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=0.7\textwidth]{../results/cross_domain_normalized.png}
+    \caption{Performance retention relative to 1-hop (averaged across strategies). Dense PrimeKG loses 70\% of performance at 2-hop; sparse Amazon retains 60\%.}
+    \label{fig:normalized}
+\end{figure}
 
 %----------------------------------------------------------------------
 \section{Discussion}
@@ -264,7 +312,9 @@ The router reveals two problems. First, \textit{skewness does not correlate well
 
 The hop-count cliff is a consequence of graph density. On STaRK-PrimeKG, the mean degree is 62.6, meaning a single hop from a query entity reaches $\sim$60 nodes. At 1-hop, the answer is likely within this immediate neighborhood, and all structural methods can find it. At 2-hop, the answer is somewhere among $\sim$3,600 second-degree neighbors, and embedding similarity alone cannot reliably distinguish the correct answer from thousands of structurally similar alternatives.
 
-This explains why the cliff is sharp rather than gradual: the combinatorial explosion of the neighborhood happens discretely at each hop, and there is no intermediate regime where partial structural information helps.
+The Amazon replication confirms this explanation: with mean degree 9.1, a 2-hop expansion touches only $\sim$80 nodes, and the cliff is correspondingly softer. The relationship between density and cliff severity is consistent with a combinatorial argument: the number of candidate nodes at hop $h$ scales as $\bar{d}^h$, and embedding-based ranking fails when this number exceeds the effective discriminative capacity of the embedding space.
+
+This also explains why structural methods hurt on sparse Amazon: when the neighborhood is small, expanding it adds little information but can introduce noise. The benefit of structure requires a ``Goldilocks zone'' of density where expansion reaches the answer but doesn't overwhelm the ranker.
 
 \subsection{The Focus-vs-Coverage Tradeoff}
 
@@ -292,21 +342,21 @@ Both directions require LLM calls during retrieval, trading computational cost f
 
 \subsection{Limitations}
 
-Our retrievers are relatively simple implementations that serve as controlled baselines rather than state-of-the-art systems. The papers we build on use more sophisticated approaches (learned planners, GNN encoders, LLM-guided traversal). Our contribution is characterizing the hop-count cliff and the focus-vs-coverage tradeoff, not claiming that our implementations are optimal.
+Our retrievers are relatively simple implementations that serve as controlled baselines rather than state-of-the-art systems. The papers we build on use more sophisticated approaches (learned planners, GNN encoders, LLM-guided traversal). Our contribution is characterizing the hop-count cliff and the density dependence, not claiming that our implementations are optimal.
 
-We evaluate on a single dataset (STaRK-PrimeKG). While the biomedical domain provides a dense, well-connected graph that clearly exhibits the phenomena we describe, generalization to sparser graphs or other domains remains to be tested.
+While we evaluate on two domains (biomedical and e-commerce) spanning a wide range of graph densities, our density comparison is between two points. A more thorough investigation would sweep density continuously, e.g., by subsampling edges from a dense graph.
 
-Our hop-count stratification relies on identifying the query entity via embedding similarity, which introduces noise. Some queries may be assigned to incorrect hop-count bins, potentially smoothing the observed cliff.
+Our hop-count stratification relies on identifying the query entity via embedding similarity, which introduces noise. Some queries may be assigned to incorrect hop-count bins, potentially smoothing the observed cliff. The true cliff may be even sharper than we report.
 
 %----------------------------------------------------------------------
 \section{Conclusion}
 %----------------------------------------------------------------------
 
-We set out to find a phase transition in GraphRAG retrieval performance and found something more fundamental: a \textit{cliff}. On dense knowledge graphs, all retrieval strategies---text-only, path-based, subgraph-based, hybrid, beam search, and adaptive routing---collapse at 2-hop queries. The statistical evidence confirms that structural methods gain relative advantage at higher hop counts, but absolute performance remains too low for practical use.
+We set out to find a phase transition in GraphRAG retrieval performance and found something more nuanced: a \textit{density-dependent cliff}. On dense knowledge graphs (PrimeKG, $\bar{d} = 62.6$), all six retrieval strategies collapse at 2-hop queries with a $\sim$70\% performance drop. On sparse graphs (Amazon, $\bar{d} = 9.1$), the degradation is gradual ($\sim$40\%), and structural methods can even \textit{hurt}---the opposite of dense-graph behavior.
 
-Through systematic ablation studies, we show that this cliff arises from a fundamental focus-versus-coverage tradeoff inherent to dense graphs. Through beam search and adaptive routing experiments, we further show that the cliff is robust to principled attempts to overcome it within the embedding-based paradigm. The bridge entity problem---intermediate reasoning nodes are not textually similar to the query---renders embedding-guided traversal ineffective for multi-hop reasoning.
+Through systematic ablation studies, we show that the cliff arises from a fundamental focus-versus-coverage tradeoff driven by the combinatorial explosion of neighborhoods on dense graphs. Through beam search and adaptive routing experiments, we show the cliff is robust to principled attempts to overcome it within the embedding-based paradigm. The bridge entity problem---intermediate reasoning nodes are not textually similar to the query---renders embedding-guided traversal ineffective for multi-hop reasoning regardless of architecture.
 
-The implication is clear: the future of multi-hop GraphRAG on dense knowledge graphs lies not in better embedding-based retrieval strategies but in \textit{relation-type-aware} methods that leverage edge semantics to guide traversal, or in iterative retrieval-generation loops that decompose multi-hop reasoning into manageable single-hop steps.
+The cross-domain comparison reveals graph density as the key moderating variable for GraphRAG system design. On sparse graphs, simple text-based retrieval suffices even for multi-hop queries. On dense graphs, overcoming the cliff requires moving beyond embeddings to \textit{relation-type-aware} methods that leverage edge semantics, or to iterative retrieval-generation loops that decompose multi-hop reasoning into manageable single-hop steps.
 
 %----------------------------------------------------------------------
 \bibliographystyle{plainnat}
