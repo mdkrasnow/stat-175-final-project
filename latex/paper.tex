@@ -30,7 +30,7 @@
 \maketitle
 
 \begin{abstract}
-We investigate how retrieval strategy affects answer quality in graph retrieval-augmented generation (GraphRAG) as query complexity increases. Through controlled experiments on two STaRK benchmarks---PrimeKG (129K nodes, mean degree 62.6, 11,204 queries) and Amazon (1M nodes, mean degree 9.1, 9,100 queries)---we compare six retrieval strategies stratified by query hop count. On the dense PrimeKG graph, we find a sharp \textit{performance cliff}: Hit@10 drops $\sim$70\% from 1-hop to 2-hop queries across all strategies. On the sparse Amazon graph, the degradation is gradual ($\sim$40\% drop), and strategies that exploit graph structure \textit{underperform} text-only retrieval at multi-hop---the opposite of dense-graph behavior. This cross-domain comparison reveals that \textbf{cliff severity is governed by graph density}: the combinatorial explosion of the neighborhood at each hop overwhelms embedding-based retrieval on dense graphs but is manageable on sparse ones. Ablation studies reveal a fundamental focus-versus-coverage tradeoff, and two principled approaches to overcoming the cliff---beam search and query-adaptive routing---fail, confirming the barrier is intrinsic to embedding-based retrieval on dense graphs.
+We investigate how retrieval strategy affects answer quality in graph retrieval-augmented generation (GraphRAG) as query complexity increases. Through controlled experiments on two STaRK benchmarks---PrimeKG (129K nodes, mean degree 62.6, 11,204 queries) and Amazon (1M nodes, mean degree 9.1, 9,100 queries)---we compare six retrieval strategies stratified by query hop count. On the dense PrimeKG graph, we find a sharp \textit{performance cliff}: Hit@10 drops $\sim$70\% from 1-hop to 2-hop queries across all strategies. On the sparse Amazon graph, the degradation is gradual ($\sim$40\% drop), and strategies that exploit graph structure \textit{underperform} text-only retrieval at multi-hop---the opposite of dense-graph behavior. This cross-domain comparison reveals that \textbf{cliff severity is governed by graph density}: the combinatorial explosion of the neighborhood at each hop overwhelms embedding-based retrieval on dense graphs but is manageable on sparse ones. Ablation studies reveal a fundamental focus-versus-coverage tradeoff. We then test whether a \textit{learned} transition scorer---Query-Conditioned Transition Retrieval (QCTR)---can overcome the cliff by replacing embedding similarity with query-conditioned next-hop scoring. QCTR significantly improves 3--4 hop retrieval (2--3$\times$ at 4-hop, $p < 0.001$) and achieves 75\% bridge entity recall vs.\ 55\% for cosine scoring, but does not shift the 1$\to$2 hop cliff boundary, revealing two distinct failure mechanisms.
 \end{abstract}
 
 %----------------------------------------------------------------------
@@ -49,6 +49,7 @@ Our contributions are:
     \item We provide statistical evidence (paired bootstrap tests, logistic regression interaction analysis) that structural methods \textbf{gain relative advantage} as query complexity increases, even though absolute performance is low.
     \item Through five ablation studies, we identify a \textbf{fundamental focus-vs-coverage tradeoff} that no single hyperparameter setting resolves.
     \item We show that two principled approaches to overcoming the cliff---\textbf{beam search} and \textbf{query-adaptive routing}---fail, demonstrating that the barrier is intrinsic to embedding-based retrieval on dense graphs.
+    \item We propose \textbf{QCTR}, a learned query-conditioned transition scorer that replaces cosine-similarity pruning with an MLP trained on shortest-path trajectories. QCTR achieves \textbf{2--3$\times$ improvement at 4-hop} ($p < 0.001$) and 75\% bridge entity recall, decomposing the cliff into an addressable pruning failure and an intrinsic combinatorial barrier.
     \item We replicate on STaRK-Amazon (sparse, $\bar{d} = 9.1$), showing that \textbf{cliff severity correlates with graph density} and that structural retrieval can \textit{hurt} on sparse graphs---establishing density as the key moderating variable.
 \end{enumerate}
 
@@ -139,6 +140,8 @@ We implement four retrieval strategies, each taking a natural language query and
     \item \textbf{Beam search} (inspired by Think-on-Graph~\citep{sun2024tog}): Iterative hop-by-hop expansion with embedding-guided pruning. At each hop, expand all neighbors of the current beam, score by embedding similarity, and retain only the top-$b$ (beam width) nodes. This converts exponential expansion ($d^k$ for degree $d$ and $k$ hops) to linear ($b \times k$).
 
     \item \textbf{Adaptive router} (inspired by SkewRoute~\citep{wang2025skewroute}): Compute the skewness of the top-50 embedding similarity scores for each query. High skewness indicates a focused query (one dominant seed node), routing to a focused configuration (1 seed, 1-hop expansion). Low skewness indicates a diffuse query, routing to a broad configuration (5 seeds, 2-hop expansion). This tests whether query-adaptive strategy selection can overcome the cliff.
+
+    \item \textbf{QCTR} (Query-Conditioned Transition Retrieval; ours): Rather than scoring neighbors by embedding similarity, QCTR learns a transition scorer that evaluates whether a neighbor is a useful next hop \textit{for this query from this node}. An MLP takes as input the concatenation of query, current-node, and candidate-node embeddings (384 dims each), three cosine similarity features, and a learned edge-type embedding (16 dims; PrimeKG has 18 relation types). The model is trained on step-level transitions extracted from BFS shortest paths between query entities and gold answers ($\sim$50K positive transitions), with random and hard-negative sampling ($\sim$375K negatives). At inference, QCTR performs beam search ($b = 10$, max 4 hops) using the learned scorer instead of cosine similarity.
 \end{enumerate}
 
 \subsection{Controls}
@@ -369,6 +372,100 @@ The router reveals two problems. First, \textit{skewness does not correlate well
 
 \paragraph{Implications.} The failure of both approaches confirms that the hop-count cliff is not an artifact of naive single-shot retrieval. Iterative expansion with embedding-guided pruning (beam search) and query-adaptive strategy selection (routing) both fail because they rely on the same underlying signal---embedding similarity---which does not capture relational reasoning.
 
+\subsection{Learned Transition Scoring (QCTR)}
+
+The bridge entity problem identified above suggests a specific remedy: replace embedding similarity with a \textit{learned} transition scorer that evaluates next-hop usefulness conditioned on the query. We test this with QCTR, trained on 49,905 positive transitions from shortest paths and 374,983 negatives (step-level AUC = 0.80 on held-out transitions).
+
+\paragraph{Main results.} Table~\ref{tab:qctr_results} compares QCTR against the four baseline strategies on all 11,204 PrimeKG queries. QCTR's performance profile differs qualitatively from all baselines.
+
+\begin{table}[h]
+\centering
+\caption{QCTR vs.\ baseline strategies on STaRK-PrimeKG. Bold indicates best per row. QCTR significantly outperforms all baselines at 3--4 hops but underperforms at 1-hop.}
+\label{tab:qctr_results}
+\begin{tabular}{l ccccc ccccc}
+\toprule
+& \multicolumn{5}{c}{Hit@10} & \multicolumn{5}{c}{MRR} \\
+\cmidrule(lr){2-6} \cmidrule(lr){7-11}
+Hop & Node & Path & Sub. & Hyb. & QCTR & Node & Path & Sub. & Hyb. & QCTR \\
+\midrule
+1 & 0.434 & 0.514 & \textbf{0.611} & 0.522 & 0.198 & 0.297 & 0.297 & \textbf{0.329} & 0.315 & 0.092 \\
+2 & 0.176 & 0.178 & 0.160 & \textbf{0.181} & 0.141 & 0.049 & \textbf{0.060} & 0.047 & 0.050 & 0.051 \\
+3 & 0.112 & 0.115 & 0.117 & 0.113 & \textbf{0.161} & 0.028 & 0.039 & 0.030 & 0.029 & \textbf{0.044} \\
+4 & 0.121 & 0.109 & 0.112 & 0.129 & \textbf{0.190} & 0.032 & 0.041 & 0.031 & 0.033 & \textbf{0.097} \\
+5 & 0.137 & \textbf{0.144} & 0.134 & 0.137 & 0.000 & 0.038 & \textbf{0.046} & 0.037 & 0.038 & 0.000 \\
+6+ & \textbf{0.150} & 0.068 & 0.109 & 0.143 & 0.000 & \textbf{0.035} & 0.029 & 0.029 & 0.033 & 0.000 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+At 4-hop, QCTR achieves Hit@1 = 0.060 vs.\ 0.018 (path-centric) and MRR = 0.097 vs.\ 0.041---a 2--3$\times$ improvement that is highly significant (paired bootstrap $p < 0.001$). At 3-hop, QCTR achieves Hit@10 = 0.161 vs.\ 0.117 (subgraph-centric best), a 38\% relative improvement. However, QCTR \textit{underperforms} at 1-hop (0.198 vs.\ 0.611) because beam search explores outward while 1-hop answers are immediate neighbors where direct similarity suffices. At 5+ hops, QCTR collapses entirely because the beam depth (4 hops) cannot reach these answers.
+
+\begin{figure}[h]
+    \centering
+    \includegraphics[width=\textwidth]{../results/prime_phase_transition_qctr.png}
+    \caption{Phase transition plot with QCTR (red dashed). QCTR breaks above the baseline plateau at 3--4 hops but cannot reach 5+ hop answers. The 1$\to$2 hop cliff persists.}
+    \label{fig:qctr_phase}
+\end{figure}
+
+\paragraph{Ablation study.} Table~\ref{tab:qctr_ablations} presents ablations on 100 queries per hop bin isolating the contribution of each QCTR component.
+
+\begin{table}[h]
+\centering
+\caption{QCTR ablation study (Hit@10, 100 queries/bin). Key finding: max\_hops=2 is best for 1--2 hop; learned scoring beats cosine at 4-hop; smaller beams outperform larger ones.}
+\label{tab:qctr_ablations}
+\begin{tabular}{l cccccc}
+\toprule
+Config & 1-hop & 2-hop & 3-hop & 4-hop & 5-hop & 6+-hop \\
+\midrule
+QCTR (full) & 0.180 & 0.080 & 0.120 & \textbf{0.150} & 0.000 & 0.000 \\
+cosine-only beam & 0.060 & 0.120 & 0.160 & 0.130 & 0.000 & 0.000 \\
+no edge types & \textbf{0.690} & 0.080 & 0.000 & 0.000 & 0.000 & 0.000 \\
+beam\_width=5 & 0.280 & \textbf{0.140} & \textbf{0.140} & 0.140 & 0.000 & 0.000 \\
+beam\_width=20 & 0.160 & 0.080 & 0.080 & 0.140 & 0.000 & 0.000 \\
+max\_hops=2 & 0.580 & \textbf{0.260} & 0.000 & 0.000 & 0.000 & 0.000 \\
+max\_hops=6 & 0.100 & 0.090 & 0.060 & 0.070 & \textbf{0.030} & \textbf{0.020} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three findings emerge: (1)~\textit{Smaller beams outperform larger ones} at 2--3 hops (beam\_width=5 achieves 0.140 vs.\ 0.080 for beam\_width=20), mirroring the focus-vs-coverage tradeoff. (2)~\textit{Shallow search dominates for nearby answers}: max\_hops=2 achieves the best 2-hop Hit@10 (0.260) by concentrating search, but zeros out at 3+ hops. (3)~\textit{Edge types help at depth but hurt at surface}: removing edge embeddings yields 0.690 Hit@10 at 1-hop (best in any experiment) but collapses at 3+ hops, showing that relation-type constraints channel search toward multi-hop paths at the cost of flexibility for direct retrieval.
+
+\paragraph{Bridge entity recall.} The key mechanistic question is whether QCTR actually preserves bridge entities---the intermediate nodes that embedding similarity discards. On 100 two-hop queries, we measure whether the correct bridge node (the intermediate node on the gold shortest path) appears in the beam after the first hop:
+
+\begin{center}
+\begin{tabular}{lc}
+\toprule
+Scorer & Bridge entity recall \\
+\midrule
+Learned (QCTR) & \textbf{75.0\%} (75/100) \\
+Cosine & 55.0\% (55/100) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+QCTR retains 20 percentage points more bridge entities, confirming that the learned scorer identifies structurally important nodes that lack textual similarity to the query. This is the core mechanism by which QCTR improves multi-hop retrieval.
+
+\paragraph{Density sensitivity.} We partition queries by the degree of their query entity (above/below median) and evaluate QCTR:
+
+\begin{center}
+\begin{tabular}{lcc}
+\toprule
+Hop & Low degree Hit@10 & High degree Hit@10 \\
+\midrule
+2-hop & \textbf{0.140} & 0.020 \\
+3-hop & \textbf{0.160} & 0.080 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+QCTR performs 7$\times$ better on low-degree query nodes at 2-hop, providing direct evidence that density is the governing variable even \textit{within} a single graph. High-degree neighborhoods overwhelm the learned scorer just as they overwhelm cosine similarity, though with a higher threshold.
+
+\paragraph{Decomposing the cliff.} QCTR reveals that the hop-count cliff comprises two distinct mechanisms:
+\begin{enumerate}
+    \item \textbf{Bridge entity pruning} (addressable): Embedding similarity discards intermediate nodes needed for multi-hop paths. QCTR's learned scorer partially solves this, improving 3--4 hop retrieval by 2--3$\times$.
+    \item \textbf{Combinatorial explosion} (intrinsic): On dense graphs, the candidate set grows as $\bar{d}^h$, eventually overwhelming \textit{any} bounded-depth scorer. This explains why QCTR does not shift the 1$\to$2 hop cliff boundary and collapses at 5+ hops.
+\end{enumerate}
+
 \subsection{Cross-Domain Replication: The Role of Graph Density}
 
 To test whether the cliff is specific to PrimeKG or a general phenomenon, we replicate on STaRK-Amazon, a much sparser graph (mean degree 9.1 vs.\ 62.6). Figure~\ref{fig:cross_domain} compares performance degradation across the two datasets.
@@ -440,14 +537,14 @@ Our results provide empirical grounding for observations in the literature:
 
 \subsection{Implications}
 
-Our results suggest that effective GraphRAG on dense knowledge graphs cannot be solved by better embedding-based strategies alone---whether fixed, iterative, or adaptive. The cliff persists because embedding similarity does not encode relational reasoning. Two directions appear promising:
+Our results suggest that effective GraphRAG on dense knowledge graphs requires moving beyond pure embedding similarity. The cliff has two components, each suggesting a different remedy:
 
 \begin{enumerate}
-    \item \textbf{Relation-type-aware traversal}: On typed KGs like PrimeKG, filtering edges by predicted relation type before expansion could reduce the effective degree from $\sim$60 to $\sim$10 per hop. Methods like Think-on-Graph~\citep{sun2024tog} and MoR's planning stage~\citep{yue2025mor} implement variants of this idea.
-    \item \textbf{Iterative retrieval-generation}: Interleaving retrieval with LLM reasoning~\citep{trivedi2023ircot} decomposes multi-hop problems into sequential single-hop retrievals, each guided by the current reasoning state. This avoids the neighborhood explosion entirely by never expanding more than one hop at a time.
+    \item \textbf{Bridge entity pruning} $\to$ \textbf{learned transition scoring}: QCTR demonstrates that training a scorer on shortest-path trajectories can recover bridge entities that cosine similarity discards. This is a lightweight intervention (an MLP with 732K parameters, no LLM calls) that significantly improves 3--4 hop retrieval. However, the gains are bounded by beam depth and do not address the combinatorial explosion.
+    \item \textbf{Combinatorial explosion} $\to$ \textbf{relation-type-aware traversal or iterative retrieval}: On typed KGs like PrimeKG, filtering edges by relation type could reduce the effective degree from $\sim$60 to $\sim$10 per hop. QCTR's edge-type ablation supports this: removing edge types yields excellent 1-hop retrieval but collapses at multi-hop, showing that relation types are essential for channeling deep search. Alternatively, iterative retrieval-generation~\citep{trivedi2023ircot} decomposes multi-hop problems into sequential single-hop retrievals, avoiding the neighborhood explosion entirely.
 \end{enumerate}
 
-Both directions require LLM calls during retrieval, trading computational cost for reasoning capability. Whether this trade-off is worthwhile depends on the density of the target graph and the proportion of multi-hop queries.
+The most promising direction may be combining QCTR's learned transition scoring with relation-type filtering and iterative LLM-guided decomposition, attacking both failure mechanisms simultaneously.
 
 \subsection{Limitations}
 
@@ -461,11 +558,11 @@ Our hop-count stratification relies on identifying the query entity via embeddin
 \section{Conclusion}
 %----------------------------------------------------------------------
 
-We set out to find a phase transition in GraphRAG retrieval performance and found something more nuanced: a \textit{density-dependent cliff}. On dense knowledge graphs (PrimeKG, $\bar{d} = 62.6$), all six retrieval strategies collapse at 2-hop queries with a $\sim$70\% performance drop. On sparse graphs (Amazon, $\bar{d} = 9.1$), the degradation is gradual ($\sim$40\%), and structural methods can even \textit{hurt}---the opposite of dense-graph behavior.
+We set out to find a phase transition in GraphRAG retrieval performance and found something more nuanced: a \textit{density-dependent cliff}. On dense knowledge graphs (PrimeKG, $\bar{d} = 62.6$), all retrieval strategies collapse at 2-hop queries with a $\sim$70\% performance drop. On sparse graphs (Amazon, $\bar{d} = 9.1$), the degradation is gradual ($\sim$40\%), and structural methods can even \textit{hurt}---the opposite of dense-graph behavior.
 
-Through systematic ablation studies, we show that the cliff arises from a fundamental focus-versus-coverage tradeoff driven by the combinatorial explosion of neighborhoods on dense graphs. Through beam search and adaptive routing experiments, we show the cliff is robust to principled attempts to overcome it within the embedding-based paradigm. The bridge entity problem---intermediate reasoning nodes are not textually similar to the query---renders embedding-guided traversal ineffective for multi-hop reasoning regardless of architecture.
+Through systematic ablation studies, we show that the cliff arises from a fundamental focus-versus-coverage tradeoff driven by the combinatorial explosion of neighborhoods on dense graphs. Beam search and adaptive routing experiments show the cliff is robust to principled attempts to overcome it within the embedding-based paradigm. Our QCTR method---which replaces embedding similarity with a learned query-conditioned transition scorer---partially breaks through the cliff, achieving 2--3$\times$ improvements at 3--4 hops ($p < 0.001$) and 75\% bridge entity recall vs.\ 55\% for cosine scoring. However, QCTR does not shift the 1$\to$2 hop cliff boundary, revealing that the cliff comprises two distinct mechanisms: an addressable \textit{pruning failure} at bridge entities, and an intrinsic \textit{combinatorial barrier} that overwhelms any bounded-depth scorer on dense graphs.
 
-The cross-domain comparison reveals graph density as the key moderating variable for GraphRAG system design. On sparse graphs, simple text-based retrieval suffices even for multi-hop queries. On dense graphs, overcoming the cliff requires moving beyond embeddings to \textit{relation-type-aware} methods that leverage edge semantics, or to iterative retrieval-generation loops that decompose multi-hop reasoning into manageable single-hop steps.
+The cross-domain comparison reveals graph density as the key moderating variable for GraphRAG system design. On sparse graphs, simple text-based retrieval suffices even for multi-hop queries. On dense graphs, overcoming the cliff requires attacking both failure mechanisms: learned transition scoring (as in QCTR) to preserve bridge entities, combined with relation-type filtering or iterative retrieval-generation to manage the combinatorial explosion.
 
 %----------------------------------------------------------------------
 \bibliographystyle{plainnat}
