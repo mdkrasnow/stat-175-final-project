@@ -10,3 +10,4 @@ anthropic>=0.20
 tqdm>=4.65
 matplotlib>=3.7
 seaborn>=0.12
+torch>=2.0
