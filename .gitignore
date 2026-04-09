@@ -25,6 +25,12 @@ references/MoR/
 # HuggingFace cache
 .cache/
 
+# Large data/model files
+data/qctr/prime/*.npz
+data/qctr/prime/*_metadata.json
+models/qctr/
+results/amazon_cache/
+
 # Python
 *.egg-info/
 dist/
