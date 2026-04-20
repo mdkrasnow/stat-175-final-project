@@ -44,10 +44,11 @@ Task-level detail with file paths, reusable archived code, and acceptance criter
 - [x] Verified: zero node leaks across all 20 folds; pos/neg = 1:1
 - [ ] TODO (deferred to Phase 4): held-out-schema splits, held-out disease class splits
 
-### 1.4 Text embeddings → `src/samplers/text_word2vec.py`
-- [ ] Train Word2Vec (gensim) on tokenized node descriptions from the full PrimeKG corpus (schema-agnostic, trained once).
-- [ ] Output: `data/embeddings/word2vec_200d.npy` (shape `[n_nodes, 200]`), plus `node_id → row_index` mapping.
-- [ ] Also compute a SBERT baseline embedding (`all-MiniLM-L6-v2`, 384-d) for the text-encoder-swap ablation; save to `data/embeddings/sbert_384d.npy`.
+### 1.4 Text embeddings → `src/samplers/text_word2vec.py` ✅ (Word2Vec done; SBERT deferred)
+- [x] Word2Vec skip-gram (dim=200, window=5, epochs=10) trained on 10.3M tokens from 129k node descriptions; 76,997-word vocab
+- [x] Per-node embeddings via IDF-weighted mean of word vectors; 100% coverage
+- [x] Saved to `data/embeddings/word2vec_200d.npz` (shape [129375, 200])
+- [ ] SBERT baseline (`all-MiniLM-L6-v2`, 384-d) — deferred to Phase 5.2 (text-encoder-swap ablation)
 
 ### 1.5 Structural samplers → `src/samplers/`
 - [ ] `deepwalk.py` — uniform random walks + gensim Word2Vec skip-gram. Params: `walk_length=40, num_walks=10, window=5, dim=128`.
