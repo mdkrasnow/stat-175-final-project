@@ -95,10 +95,10 @@ SCHEMAS_BY_NAME: dict[str, Schema] = {s.name: s for s in ALL_SCHEMAS}
 def induce_schema_subgraph(kg: PrimeKG, schema: Schema) -> nx.Graph:
     """Induce the subgraph of ``kg`` containing only the schema's nodes and edges.
 
-    - Keeps only nodes whose type ∈ schema.node_types.
-    - Keeps only edges whose relation ∈ schema.relation_types AND whose
-      endpoints both survived the node filter.
-    - Copies over node text, type, and edge relation attributes.
+    - Keeps nodes whose type ∈ schema.node_types.
+    - Keeps edges where at least one relation on the pair ∈ schema.relation_types
+      and both endpoints survived the node filter. The edge's 'relations'
+      attribute stores the intersection (all schema-relevant relations).
     """
     allowed_nodes = {n for n, t in kg.node_types.items() if t in schema.node_types}
 
@@ -106,33 +106,42 @@ def induce_schema_subgraph(kg: PrimeKG, schema: Schema) -> nx.Graph:
     for n in allowed_nodes:
         H.add_node(n, node_type=kg.node_types[n], text=kg.node_texts.get(n, ""))
 
+    schema_rels = schema.relation_types
     for u, v in kg.graph.edges():
         if u not in allowed_nodes or v not in allowed_nodes:
             continue
         key = (u, v) if u <= v else (v, u)
-        rel = kg.relation_types.get(key)
-        if rel is None or rel not in schema.relation_types:
+        pair_rels = kg.relations_by_pair.get(key, frozenset())
+        kept = pair_rels & schema_rels
+        if not kept:
             continue
-        H.add_edge(u, v, relation=rel)
+        H.add_edge(u, v, relations=kept, primary_relation=min(kept))
 
     return H
 
 
-def target_edges(kg: PrimeKG, schema: Schema, subgraph: nx.Graph | None = None) -> list[tuple[int, int]]:
-    """Return the edges whose relation is a target-relation for this schema.
+def target_edges(
+    kg: PrimeKG,
+    schema: Schema,
+    subgraph: nx.Graph | None = None,
+) -> list[tuple[int, int]]:
+    """Return the edges whose relation set intersects schema.target_relations.
 
-    These are the positive examples for the link-prediction task on this schema.
+    These are the positive examples for the link-prediction task. Returned
+    as sorted (u<=v) pairs in lexicographic order for reproducibility.
     """
     targets = schema.target_relations or schema.relation_types
     G = subgraph if subgraph is not None else kg.graph
-    edges = []
+    edges: list[tuple[int, int]] = []
     for u, v, data in G.edges(data=True):
-        rel = data.get("relation")
-        if rel is None:
+        rels = data.get("relations")
+        if rels is None:
             key = (u, v) if u <= v else (v, u)
-            rel = kg.relation_types.get(key)
-        if rel in targets:
-            edges.append((u, v))
+            rels = kg.relations_by_pair.get(key, frozenset())
+        if rels & targets:
+            a, b = (u, v) if u <= v else (v, u)
+            edges.append((a, b))
+    edges.sort()
     return edges
 
 
@@ -142,7 +151,9 @@ def schema_inventory(kg: PrimeKG) -> dict:
     Writes to results/schema_inventory.json when run as __main__.
     """
     node_type_counts = Counter(kg.node_types.values())
-    relation_counts = Counter(kg.relation_types.values())
+    relation_counts: Counter[str] = Counter()
+    for rels in kg.relations_by_pair.values():
+        relation_counts.update(rels)
 
     inventory = {
         "full_graph": {
@@ -164,7 +175,9 @@ def schema_inventory(kg: PrimeKG) -> dict:
             )[:5]
         targets = target_edges(kg, schema, subgraph=H)
         schema_node_types = Counter(H.nodes[n]["node_type"] for n in H.nodes)
-        schema_rel_types = Counter(d["relation"] for _, _, d in H.edges(data=True))
+        schema_rel_types: Counter[str] = Counter()
+        for _, _, d in H.edges(data=True):
+            schema_rel_types.update(d["relations"])
         inventory["schemas"][schema.name] = {
             "description": schema.description,
             "num_nodes": H.number_of_nodes(),

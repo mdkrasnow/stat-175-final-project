@@ -23,13 +23,13 @@ EXPECTED_NUM_EDGES = 4_049_642
 
 @dataclass
 class PrimeKG:
-    graph: nx.Graph                            # undirected, int-indexed nodes
-    node_texts: dict[int, str]                 # node_id -> description string
-    node_types: dict[int, str]                 # node_id -> type name (e.g. "drug")
-    relation_types: dict[tuple[int, int], str] # sorted-pair -> relation name
-    node_type_vocab: list[str]                 # canonical ordering of node types
-    relation_type_vocab: list[str]             # canonical ordering of relations
-    node_info: dict[int, dict] = field(default_factory=dict)  # optional metadata
+    graph: nx.Graph                                      # undirected, int-indexed nodes
+    node_texts: dict[int, str]                           # node_id -> description string
+    node_types: dict[int, str]                           # node_id -> type name (e.g. "drug")
+    relations_by_pair: dict[tuple[int, int], frozenset[str]]  # sorted-pair -> all relations
+    node_type_vocab: list[str]                           # canonical ordering of node types
+    relation_type_vocab: list[str]                       # canonical ordering of relations
+    node_info: dict[int, dict] = field(default_factory=dict)
 
     def num_nodes(self) -> int:
         return self.graph.number_of_nodes()
@@ -40,31 +40,45 @@ class PrimeKG:
     def nodes_of_type(self, node_type: str) -> list[int]:
         return [n for n, t in self.node_types.items() if t == node_type]
 
+    def relations_on(self, u: int, v: int) -> frozenset[str]:
+        """All relations on the undirected edge (u,v). Empty frozenset if no edge."""
+        key = (u, v) if u <= v else (v, u)
+        return self.relations_by_pair.get(key, frozenset())
 
-def _build_graph(skb) -> tuple[nx.Graph, dict[tuple[int, int], str]]:
-    """Build NetworkX graph from an SKB, attaching relation types as edge attrs."""
+
+def _build_graph(skb) -> tuple[nx.Graph, dict[tuple[int, int], frozenset[str]]]:
+    """Build NetworkX graph from an SKB, attaching the full relation set per edge.
+
+    A single undirected pair can carry multiple relations in PrimeKG (e.g. a
+    drug-disease pair that is both 'indication' and 'side effect'). We keep
+    the full set on each edge as the 'relations' attribute, and also pick a
+    canonical 'primary_relation' (the lex-smallest, for deterministic display).
+    """
     G = nx.Graph()
     G.add_nodes_from(range(skb.num_nodes()))
 
-    edge_index = skb.edge_index.numpy()          # shape [2, E]
-    edge_types = skb.edge_types.numpy()          # shape [E]
-    edge_type_dict = skb.edge_type_dict          # int -> relation name
+    edge_index = skb.edge_index.numpy()
+    edge_types = skb.edge_types.numpy()
+    edge_type_dict = skb.edge_type_dict
 
-    relation_types: dict[tuple[int, int], str] = {}
-    edges_to_add: list[tuple[int, int, dict]] = []
+    pair_relations: dict[tuple[int, int], set[str]] = {}
     for (u, v), t in zip(edge_index.T, edge_types):
         u_i, v_i = int(u), int(v)
+        if u_i == v_i:
+            continue  # drop self-loops; they carry no structural signal
         key = (u_i, v_i) if u_i <= v_i else (v_i, u_i)
-        rel = edge_type_dict[int(t)]
-        # If multiple relations exist between a pair, keep the first; PrimeKG
-        # is largely single-relation per pair but a handful of duplicates can
-        # occur when symmetrized.
-        if key not in relation_types:
-            relation_types[key] = rel
-            edges_to_add.append((u_i, v_i, {"relation": rel}))
+        pair_relations.setdefault(key, set()).add(edge_type_dict[int(t)])
+
+    relations_by_pair: dict[tuple[int, int], frozenset[str]] = {}
+    edges_to_add: list[tuple[int, int, dict]] = []
+    for (u, v), rels in pair_relations.items():
+        frozen = frozenset(rels)
+        relations_by_pair[(u, v)] = frozen
+        primary = min(rels)
+        edges_to_add.append((u, v, {"relations": frozen, "primary_relation": primary}))
 
     G.add_edges_from(edges_to_add)
-    return G, relation_types
+    return G, relations_by_pair
 
 
 def _extract_node_metadata(skb) -> tuple[dict[int, str], dict[int, str], dict[int, dict]]:
@@ -78,12 +92,12 @@ def _extract_node_metadata(skb) -> tuple[dict[int, str], dict[int, str], dict[in
     for node_id in range(skb.num_nodes()):
         try:
             texts[node_id] = skb.get_doc_info(node_id, add_rel=False) or ""
-        except Exception:
+        except (KeyError, AttributeError, TypeError):
             texts[node_id] = ""
         types[node_id] = node_type_dict[int(node_types_tensor[node_id])]
         try:
             info[node_id] = dict(skb.node_info[node_id])
-        except Exception:
+        except (KeyError, AttributeError, TypeError):
             info[node_id] = {}
     return texts, types, info
 
@@ -116,7 +130,7 @@ def load_primekg(
 
     if verbose:
         print(f"Building graph: {skb.num_nodes()} nodes...")
-    graph, relation_types = _build_graph(skb)
+    graph, relations_by_pair = _build_graph(skb)
 
     if verbose:
         print("Extracting node texts and types...")
@@ -126,7 +140,7 @@ def load_primekg(
         graph=graph,
         node_texts=node_texts,
         node_types=node_types,
-        relation_types=relation_types,
+        relations_by_pair=relations_by_pair,
         node_type_vocab=list(PrimeSKB.NODE_TYPES),
         relation_type_vocab=list(PrimeSKB.RELATION_TYPES),
         node_info=node_info,
@@ -161,6 +175,9 @@ if __name__ == "__main__":
     print("\nNode type counts:")
     for t, c in Counter(kg.node_types.values()).most_common():
         print(f"  {t:25s} {c:>8d}")
-    print("\nRelation counts (top 10):")
-    for r, c in Counter(kg.relation_types.values()).most_common(10):
+    print("\nRelation counts (pair-level, any occurrence, top 10):")
+    rel_counter: Counter[str] = Counter()
+    for rels in kg.relations_by_pair.values():
+        rel_counter.update(rels)
+    for r, c in rel_counter.most_common(10):
         print(f"  {r:25s} {c:>8d}")
