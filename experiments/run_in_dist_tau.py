@@ -126,18 +126,23 @@ def run_schema(
             "tau_bar": dml.tau_bar,
             "auc_T": dml.auc_T,
             "auc_TS": dml.auc_TS,
+            "auc_gap": dml.auc_TS - dml.auc_T,
             "ci_lower": ci.lower,
             "ci_upper": ci.upper,
             "ci_se": ci.se,
-            "permutation_p_uncorrected": perm["p_value_two_sided"],
+            "permutation_p_auc": perm["p_value_auc_one_sided"],
+            "permutation_p_tau": perm["p_value_tau_two_sided"],
             "n_pairs": int(len(pairs)),
         }
-        p_values[sampler] = perm["p_value_two_sided"]
+        # Use AUC-gap p-value as the primary significance statistic
+        p_values[sampler] = perm["p_value_auc_one_sided"]
 
         print(f"    τ̄={dml.tau_bar:+.4f} "
               f"CI=[{ci.lower:+.4f}, {ci.upper:+.4f}] "
               f"AUC_T={dml.auc_T:.3f} AUC_TS={dml.auc_TS:.3f} "
-              f"p={perm['p_value_two_sided']:.3f}")
+              f"(+{dml.auc_TS - dml.auc_T:.4f}) "
+              f"p_AUC={perm['p_value_auc_one_sided']:.3f} "
+              f"p_τ={perm['p_value_tau_two_sided']:.3f}")
 
         # Write partial results after each sampler so a crash doesn't lose everything
         if results_path is not None and accumulator is not None:
@@ -145,11 +150,11 @@ def run_schema(
             results_path.parent.mkdir(parents=True, exist_ok=True)
             results_path.write_text(json.dumps(accumulator, indent=2))
 
-    # Holm correction within schema across samplers
+    # Holm correction within schema on AUC-gap p-values
     if p_values:
         corrected = holm_correction(p_values)
         for k, p_adj in corrected.items():
-            per_sampler[k]["permutation_p_holm"] = p_adj
+            per_sampler[k]["permutation_p_auc_holm"] = p_adj
 
     return per_sampler
 

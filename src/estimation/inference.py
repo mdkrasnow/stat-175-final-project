@@ -84,36 +84,53 @@ def permutation_null(
     """Permutation null for H0: structural features carry no residual signal
     beyond text.
 
-    For each permutation we shuffle the rows of the structural block of X_TS
-    across pairs (breaking the link between text and structure), re-run the
-    cross-fit DML, and record τ̄. p-value = fraction of permuted τ̄ ≥ observed.
+    We shuffle the rows of the structural block of X_TS across pairs
+    (breaking the link between text and structure), re-run cross-fit DML,
+    and record TWO test statistics:
 
-    Notes:
-      - ``struct_slice`` lets you tell us which columns of X_TS to permute.
-        Usually slice(X_T.shape[1], None) if X_TS = concat(X_T, X_S).
-      - Observed τ̄ should be recomputed here to keep the comparison exact.
+      - τ̄ (mean probability-scale contrast)
+      - AUC gap (AUC_TS - AUC_T)
+
+    Observed values are in the tail of their respective null distributions
+    when structure adds real signal. We report p-values from both.
+
+    The AUC-gap p-value is the primary significance metric because τ̄ is
+    sensitive to per-classifier calibration drift (can be tiny and near-zero
+    even when structure clearly improves ranking), producing inflated
+    p-values. AUC gap is calibration-invariant.
     """
     from .dml import cross_fit_dml
 
     rng = np.random.default_rng(seed)
 
-    observed = cross_fit_dml(X_T, X_TS, y, fold_ids).tau_bar
+    obs = cross_fit_dml(X_T, X_TS, y, fold_ids)
+    obs_tau = obs.tau_bar
+    obs_auc_gap = obs.auc_TS - obs.auc_T
 
     X_TS_perm = X_TS.copy()
     taus = np.empty(B, dtype=np.float64)
+    auc_gaps = np.empty(B, dtype=np.float64)
     for b in range(B):
         order = rng.permutation(X_TS.shape[0])
         X_TS_perm[:, struct_slice] = X_TS[order][:, struct_slice]
-        taus[b] = cross_fit_dml(X_T, X_TS_perm, y, fold_ids).tau_bar
-        if verbose and (b + 1) % max(1, B // 10) == 0:
-            print(f"  perm {b+1}/{B}: null τ̄={taus[b]:+.4f}")
+        res = cross_fit_dml(X_T, X_TS_perm, y, fold_ids)
+        taus[b] = res.tau_bar
+        auc_gaps[b] = res.auc_TS - res.auc_T
+        if verbose and (b + 1) % max(1, B // 5) == 0:
+            print(f"  perm {b+1}/{B}: null τ̄={taus[b]:+.4f}, "
+                  f"ΔAUC={auc_gaps[b]:+.4f}")
 
-    # Two-sided p-value
-    p = float(((np.abs(taus) >= abs(observed)).sum() + 1) / (B + 1))
+    # Two-sided p on τ̄ and one-sided p on AUC gap (does struct improve ranking?)
+    p_tau = float(((np.abs(taus) >= abs(obs_tau)).sum() + 1) / (B + 1))
+    p_auc = float(((auc_gaps >= obs_auc_gap).sum() + 1) / (B + 1))
     return {
-        "observed_tau_bar": float(observed),
+        "observed_tau_bar": float(obs_tau),
+        "observed_auc_gap": float(obs_auc_gap),
         "null_tau_bars": taus.tolist(),
-        "p_value_two_sided": p,
+        "null_auc_gaps": auc_gaps.tolist(),
+        "p_value_tau_two_sided": p_tau,
+        "p_value_auc_one_sided": p_auc,
+        "p_value_two_sided": p_tau,    # kept for back-compat; prefer p_value_auc_one_sided
         "B": B,
     }
 
