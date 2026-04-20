@@ -1,0 +1,232 @@
+{
+  "schemas": {
+    "A_drug_gene_disease": [
+      {
+        "schema": "A_drug_gene_disease",
+        "fold_idx": 0,
+        "num_folds": 5,
+        "num_train_pos": 6210,
+        "num_train_neg": 6210,
+        "num_test_pos": 331,
+        "num_test_neg": 331,
+        "num_test_nodes": 10542,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "A_drug_gene_disease",
+        "fold_idx": 1,
+        "num_folds": 5,
+        "num_train_pos": 6156,
+        "num_train_neg": 6156,
+        "num_test_pos": 349,
+        "num_test_neg": 349,
+        "num_test_nodes": 10542,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "A_drug_gene_disease",
+        "fold_idx": 2,
+        "num_folds": 5,
+        "num_train_pos": 5977,
+        "num_train_neg": 5977,
+        "num_test_pos": 366,
+        "num_test_neg": 366,
+        "num_test_nodes": 10542,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "A_drug_gene_disease",
+        "fold_idx": 3,
+        "num_folds": 5,
+        "num_train_pos": 5999,
+        "num_train_neg": 5999,
+        "num_test_pos": 383,
+        "num_test_neg": 383,
+        "num_test_nodes": 10541,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "A_drug_gene_disease",
+        "fold_idx": 4,
+        "num_folds": 5,
+        "num_train_pos": 5718,
+        "num_train_neg": 5718,
+        "num_test_pos": 467,
+        "num_test_neg": 467,
+        "num_test_nodes": 10541,
+        "leaked_nodes": 0
+      }
+    ],
+    "B_drug_pathway_disease": [
+      {
+        "schema": "B_drug_pathway_disease",
+        "fold_idx": 0,
+        "num_folds": 5,
+        "num_train_pos": 6051,
+        "num_train_neg": 6051,
+        "num_test_pos": 369,
+        "num_test_neg": 369,
+        "num_test_nodes": 11045,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "B_drug_pathway_disease",
+        "fold_idx": 1,
+        "num_folds": 5,
+        "num_train_pos": 5810,
+        "num_train_neg": 5810,
+        "num_test_pos": 390,
+        "num_test_neg": 390,
+        "num_test_nodes": 11045,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "B_drug_pathway_disease",
+        "fold_idx": 2,
+        "num_folds": 5,
+        "num_train_pos": 6097,
+        "num_train_neg": 6097,
+        "num_test_pos": 364,
+        "num_test_neg": 364,
+        "num_test_nodes": 11045,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "B_drug_pathway_disease",
+        "fold_idx": 3,
+        "num_folds": 5,
+        "num_train_pos": 6159,
+        "num_train_neg": 6159,
+        "num_test_pos": 339,
+        "num_test_neg": 339,
+        "num_test_nodes": 11045,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "B_drug_pathway_disease",
+        "fold_idx": 4,
+        "num_folds": 5,
+        "num_train_pos": 5894,
+        "num_train_neg": 5894,
+        "num_test_pos": 385,
+        "num_test_neg": 385,
+        "num_test_nodes": 11044,
+        "leaked_nodes": 0
+      }
+    ],
+    "C_disease_phenotype_gene": [
+      {
+        "schema": "C_disease_phenotype_gene",
+        "fold_idx": 0,
+        "num_folds": 5,
+        "num_train_pos": 54538,
+        "num_train_neg": 54538,
+        "num_test_pos": 3125,
+        "num_test_neg": 3125,
+        "num_test_nodes": 12013,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "C_disease_phenotype_gene",
+        "fold_idx": 1,
+        "num_folds": 5,
+        "num_train_pos": 54071,
+        "num_train_neg": 54071,
+        "num_test_pos": 3215,
+        "num_test_neg": 3215,
+        "num_test_nodes": 12013,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "C_disease_phenotype_gene",
+        "fold_idx": 2,
+        "num_folds": 5,
+        "num_train_pos": 54867,
+        "num_train_neg": 54867,
+        "num_test_pos": 3024,
+        "num_test_neg": 3024,
+        "num_test_nodes": 12012,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "C_disease_phenotype_gene",
+        "fold_idx": 3,
+        "num_folds": 5,
+        "num_train_pos": 52061,
+        "num_train_neg": 52061,
+        "num_test_pos": 3764,
+        "num_test_neg": 3764,
+        "num_test_nodes": 12012,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "C_disease_phenotype_gene",
+        "fold_idx": 4,
+        "num_folds": 5,
+        "num_train_pos": 52505,
+        "num_train_neg": 52505,
+        "num_test_pos": 3691,
+        "num_test_neg": 3691,
+        "num_test_nodes": 12012,
+        "leaked_nodes": 0
+      }
+    ],
+    "D_drug_disease_direct": [
+      {
+        "schema": "D_drug_disease_direct",
+        "fold_idx": 0,
+        "num_folds": 5,
+        "num_train_pos": 5927,
+        "num_train_neg": 5927,
+        "num_test_pos": 367,
+        "num_test_neg": 367,
+        "num_test_nodes": 5008,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "D_drug_disease_direct",
+        "fold_idx": 1,
+        "num_folds": 5,
+        "num_train_pos": 6044,
+        "num_train_neg": 6044,
+        "num_test_pos": 357,
+        "num_test_neg": 357,
+        "num_test_nodes": 5008,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "D_drug_disease_direct",
+        "fold_idx": 2,
+        "num_folds": 5,
+        "num_train_pos": 5673,
+        "num_train_neg": 5673,
+        "num_test_pos": 435,
+        "num_test_neg": 435,
+        "num_test_nodes": 5007,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "D_drug_disease_direct",
+        "fold_idx": 3,
+        "num_folds": 5,
+        "num_train_pos": 6388,
+        "num_train_neg": 6388,
+        "num_test_pos": 313,
+        "num_test_neg": 313,
+        "num_test_nodes": 5007,
+        "leaked_nodes": 0
+      },
+      {
+        "schema": "D_drug_disease_direct",
+        "fold_idx": 4,
+        "num_folds": 5,
+        "num_train_pos": 5938,
+        "num_train_neg": 5938,
+        "num_test_pos": 334,
+        "num_test_neg": 334,
+        "num_test_nodes": 5007,
+        "leaked_nodes": 0
+      }
+    ]
+  }
+}

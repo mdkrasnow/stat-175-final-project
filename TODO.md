@@ -37,12 +37,12 @@ Task-level detail with file paths, reusable archived code, and acceptance criter
   - C (disease–phenotype–gene): 60,062 / 556,154 / 83,741 associated-with targets / 36,986
   - D (drug–disease direct, held-out): 25,037 / 42,383 / 9,293 / 4,024
 
-### 1.3 Link-prediction splits → `src/data/splits.py`
-- [ ] Adapt `split_dataset()` from `archive/old_graphrag_project/src/data/qctr_data.py` for edge-level splits instead of query-level.
-- [ ] Implement degree-matched negative sampling: for each positive edge (u,v), sample a non-edge (u,v') where deg(v') ∈ [deg(v)/2, 2·deg(v)].
-- [ ] Implement **node-disjoint** 5-fold splits (critical for DML — a node's embedding cannot appear in both train and eval folds).
-- [ ] Separate splits: (a) in-distribution per schema, (b) held-out-schema, (c) held-out disease class.
-- [ ] Acceptance: no node overlap across folds; pos/neg ratio = 1:1; splits serialized to `data/splits/{schema}_fold{k}.npz`.
+### 1.3 Link-prediction splits → `src/data/splits.py` ✅ (in-distribution per schema)
+- [x] Node-disjoint 5-fold split: TEST = edges with BOTH endpoints in fold-k's node group; TRAIN = edges with NEITHER; edges with exactly one are dropped (leakage)
+- [x] Degree-matched negative sampling with O(1) lookup (bucket by degree, tolerance 2×, up to 50 tries per positive)
+- [x] Serialized to `data/splits/{schema}_fold{k}.npz`; summary in `results/splits_summary.json`
+- [x] Verified: zero node leaks across all 20 folds; pos/neg = 1:1
+- [ ] TODO (deferred to Phase 4): held-out-schema splits, held-out disease class splits
 
 ### 1.4 Text embeddings → `src/samplers/text_word2vec.py`
 - [ ] Train Word2Vec (gensim) on tokenized node descriptions from the full PrimeKG corpus (schema-agnostic, trained once).
