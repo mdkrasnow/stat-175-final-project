@@ -77,7 +77,7 @@ def cross_fit_dml(
     y: np.ndarray,
     fold_ids: np.ndarray,            # shape [N], integer fold index per pair
     make_learner=None,
-    scale: str = "logit",            # "logit" or "probability"
+    scale: str = "probability",      # "probability" (default) or "logit"
 ) -> DMLResult:
     """Cross-fit DML.
 
@@ -85,12 +85,14 @@ def cross_fit_dml(
     non-held-out pairs, predicts on the held-out pairs. Returns DMLResult.
 
     ``scale``:
-        "logit"       — τ̂_i = logit(η̂_TS) - logit(η̂_T). More stable under
-                        miscalibrated probability estimates (default).
-        "probability" — τ̂_i = η̂_TS - η̂_T. Keeps the natural probability
-                        scale but can be biased toward zero when two
-                        independently-fit classifiers have different
-                        calibration profiles.
+        "probability" — τ̂_i = η̂_TS - η̂_T. Natural probability scale.
+                        Can be biased toward zero when two independently-fit
+                        classifiers have different calibration profiles; use
+                        AUC_TS - AUC_T as a complementary headline metric,
+                        and rely on the permutation null for significance.
+        "logit"       — τ̂_i = logit(η̂_TS) - logit(η̂_T). Scale-invariant
+                        under monotone calibration but explodes variance
+                        when probabilities lie near 0/1 due to tail clipping.
     """
     if make_learner is None:
         make_learner = _DEFAULT_LEARNER
