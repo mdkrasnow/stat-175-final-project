@@ -50,49 +50,43 @@ Task-level detail with file paths, reusable archived code, and acceptance criter
 - [x] Saved to `data/embeddings/word2vec_200d.npz` (shape [129375, 200])
 - [ ] SBERT baseline (`all-MiniLM-L6-v2`, 384-d) — deferred to Phase 5.2 (text-encoder-swap ablation)
 
-### 1.5 Structural samplers → `src/samplers/`
-- [ ] `deepwalk.py` — uniform random walks + gensim Word2Vec skip-gram. Params: `walk_length=40, num_walks=10, window=5, dim=128`.
-- [ ] `node2vec.py` — two configs: BFS-biased (`p=1, q=0.25`) and DFS-biased (`p=1, q=4`). Implement via `gensim` + biased-walk sampler OR `torch-geometric.nn.Node2Vec`.
-- [ ] `graphsage.py` — unsupervised GraphSAGE with mean aggregator (PyG `SAGEConv`), trained with link-prediction loss on each schema's edges. Dim=128.
-- [ ] For each sampler and each schema: save embedding matrix to `data/embeddings/{sampler}/{schema}.npy`.
-- [ ] **Acceptance:** per-sampler link-prediction AUC > 0.7 on in-distribution holdout for at least Schema A (sanity).
+### 1.5 Structural samplers → `src/samplers/` 🔄 (training in progress)
+- [x] `random_walk.py` — shared DeepWalk + node2vec (BFS p=1,q=0.25 and DFS p=1,q=4) via gensim skip-gram (walk_length=40, num_walks=10, window=5, dim=128)
+- [x] `graphsage.py` — 2-layer SAGEConv with unsupervised link-prediction loss; learned structural-only node features (no text leakage)
+- [x] Batch training pipeline: `train_per_schema()` dispatches each sampler across all 4 schemas → `data/embeddings/{sampler}/{schema}.npz`
+- [ ] Training running: DeepWalk/node2vec ETA ~30 min, GraphSAGE ~2-4 hours
+- [ ] Acceptance: per-sampler link-prediction AUC > 0.7 on in-distribution holdout (measured during Phase 3.1)
 
 ---
 
 ## Phase 2 — DML Estimator (Days 3–4)
 
-### 2.1 Feature construction → `src/estimation/features.py`
-- [ ] `hadamard_features(emb_u, emb_v) -> np.ndarray` — element-wise product of endpoint embeddings (standard for link prediction).
-- [ ] `build_pair_features(pairs, text_emb, struct_emb=None) -> (X_T, X_TS)` where `X_T` is text-only Hadamard, `X_TS = concat(X_T, hadamard(struct))`.
+### 2.1 Feature construction → `src/estimation/features.py` ✅
+- [x] `hadamard_features()`, `build_pair_features()`, `stack_pos_neg()`, `load_embedding()`
 
-### 2.2 Cross-fit DML → `src/estimation/dml.py`
-- [ ] Implement `estimate_tau(pairs, labels, text_emb, struct_emb, n_folds=5) -> dict` returning per-pair $\hat\tau$, $\bar\tau$, and nuisance predictions.
-- [ ] Use `doubleml.DoubleMLPLR` OR roll a manual cross-fit loop (cleaner if we want per-pair τ). Recommend manual: fit `η_T = XGBoost(Y ~ X_T)` and `η_TS = XGBoost(Y ~ X_TS)` on 4 folds, score on the 5th, rotate. Compute $\hat\tau_i = \hat\eta_{TS}(x_i) - \hat\eta_T(x_i)$ on held-out fold only.
-- [ ] **Node-disjoint folds** (not edge-disjoint) — reuse splits from 1.3.
-- [ ] Acceptance: running on a trivial case where struct = noise → $\bar\tau \approx 0$ with CI covering 0.
+### 2.2 Cross-fit DML → `src/estimation/dml.py` ✅
+- [x] Manual cross-fit loop (cleaner per-pair τ̂ than doubleml); XGBoost nuisances
+- [x] Node-disjoint folds reused from Phase 1.3 via `_pool_folds()` in Phase 3.1 runner
+- [x] Returns `DMLResult` with per-pair τ̂, per-fold means, AUC of η̂_T and η̂_TS
 
-### 2.3 Cluster bootstrap + inference → `src/estimation/inference.py`
-- [ ] Lift `paired_bootstrap_test()` and `cohens_d()` from `archive/old_graphrag_project/experiments/phase4_analysis.py` — adapt for cluster resampling.
-- [ ] `cluster_bootstrap_ci(tau_per_pair, node_ids_u, node_ids_v, B=1000) -> (lower, upper, se)` — resample nodes (not pairs) with replacement, aggregate τ over pairs whose endpoints are in the resampled set.
-- [ ] `permutation_null(Y, X_T, X_TS, B=500) -> p_value` — shuffle the structural block of X_TS across nodes, refit nuisance, recompute τ, compare to observed.
-- [ ] `holm_correction(p_values: dict) -> dict` — for multi-sampler family.
+### 2.3 Cluster bootstrap + inference → `src/estimation/inference.py` ✅
+- [x] `cluster_bootstrap_ci()`, `permutation_null()`, `holm_correction()`
 
-### 2.4 Synthetic-graph validation → `experiments/validate_dml_synthetic.py`
-- [ ] Generate SBM with 3 blocks, 500 nodes/block, within-block p=0.2, between-block p=0.02.
-- [ ] Planted text features: per-block mean + noise.
-- [ ] Planted edge labels: logistic(α·same_block + β·text_similarity), choose α, β so true $\bar\tau$ is analytically known (α drives residual structural value).
-- [ ] Run DML estimator; verify 95% CI covers true $\bar\tau$ in ≥90% of 20 simulation seeds.
-- [ ] Save results to `results/dml_synthetic_validation.json` and plot to `results/dml_synthetic_validation.png`.
+### 2.4 Synthetic-graph validation → `experiments/validate_dml_synthetic.py` 🔄 (running)
+- [x] Three-regime test: struct=noise, struct=informative, text=dominant
+- [x] Acceptance asserts: regime 1 CI covers 0 + perm p > 0.1; regime 2 τ̄ > 0.01 + p < 0.1; regime 3 |τ̄| < 0.05
+- [ ] Running: ~10 min (3 regimes × 100 permutations of DML fit)
+- [ ] 20-seed Monte Carlo coverage test deferred — current 3-regime sharp-null/sharp-alternative test is more informative per compute minute
 
 ---
 
 ## Phase 3 — In-Distribution Estimation (Days 5–7)
 
-### 3.1 Per-sampler τ̄_s → `experiments/run_in_dist_tau.py`
-- [ ] For each schema ∈ {A, B, C, D} and each sampler s ∈ {DeepWalk, n2v-BFS, n2v-DFS, GraphSAGE}: compute $\hat\tau$ per edge-pair on in-distribution holdout.
-- [ ] Report: $\bar\tau_s$, 95% cluster-bootstrap CI, permutation p-value.
-- [ ] Save to `results/in_dist_tau.json` with schema-{schema}_{sampler} keys.
-- [ ] Apply Holm correction across the sampler family within each schema.
+### 3.1 Per-sampler τ̄_s → `experiments/run_in_dist_tau.py` ✅ (code ready, awaiting embeddings)
+- [x] Pools test pairs across folds, builds features, runs cross_fit_dml per sampler
+- [x] Cluster-bootstrap CI (B=500), permutation null (B=100), Holm correction per-schema
+- [x] Output: `results/in_dist_tau.json` with schema × sampler × (τ̄, CI, AUC, p_raw, p_holm)
+- [ ] Execution blocked on Phase 1.5 embeddings completing
 
 ### 3.2 Sampler contrasts → `experiments/run_sampler_contrasts.py`
 - [ ] Paired bootstrap on $(\hat\tau_s - \hat\tau_{s'})$ per pair (within-pair differences, same folds).
