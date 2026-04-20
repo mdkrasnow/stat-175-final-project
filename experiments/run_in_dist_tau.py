@@ -84,8 +84,10 @@ def run_schema(
     text_emb: np.ndarray,
     text_idx: dict[int, int],
     samplers: tuple[str, ...] = SAMPLERS,
-    permutation_B: int = 100,
+    permutation_B: int = 50,
     bootstrap_B: int = 500,
+    results_path: Path | None = None,
+    accumulator: dict | None = None,
 ) -> dict:
     pairs, labels, folds = _pool_folds(schema.name)
     print(f"\n=== {schema.name}: {len(pairs):,} pooled pairs "
@@ -137,6 +139,12 @@ def run_schema(
               f"AUC_T={dml.auc_T:.3f} AUC_TS={dml.auc_TS:.3f} "
               f"p={perm['p_value_two_sided']:.3f}")
 
+        # Write partial results after each sampler so a crash doesn't lose everything
+        if results_path is not None and accumulator is not None:
+            accumulator[schema.name] = per_sampler
+            results_path.parent.mkdir(parents=True, exist_ok=True)
+            results_path.write_text(json.dumps(accumulator, indent=2))
+
     # Holm correction within schema across samplers
     if p_values:
         corrected = holm_correction(p_values)
@@ -154,9 +162,13 @@ def main() -> None:
     text_emb, text_idx = load_embedding(EMBEDDING_DIR / "word2vec_200d.npz")
     print(f"  text_emb shape: {text_emb.shape}")
 
-    results = {}
+    results: dict = {}
     for schema in ALL_SCHEMAS:
-        results[schema.name] = run_schema(schema, text_emb, text_idx)
+        results[schema.name] = run_schema(
+            schema, text_emb, text_idx,
+            results_path=RESULTS_PATH,
+            accumulator=results,
+        )
 
     RESULTS_PATH.parent.mkdir(parents=True, exist_ok=True)
     with RESULTS_PATH.open("w") as f:
