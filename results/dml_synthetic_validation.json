@@ -1,0 +1,44 @@
+{
+  "regimes": [
+    {
+      "name": "regime_1_struct_noise",
+      "N": 592,
+      "pos_rate": 0.6824324131011963,
+      "auc_T": 0.830017642721719,
+      "auc_TS": 0.8314395934274278,
+      "tau_bar": -0.002356034703552723,
+      "ci_lower": -0.012215712387114759,
+      "ci_upper": 0.007050341495778411,
+      "permutation_p": 0.44554455445544555
+    },
+    {
+      "name": "regime_2_struct_informative",
+      "N": 645,
+      "pos_rate": 0.6108527183532715,
+      "auc_T": 0.6227829797561025,
+      "auc_TS": 0.7213936133638036,
+      "tau_bar": -0.01773134060204029,
+      "ci_lower": -0.04521015956997871,
+      "ci_upper": 0.009815822076052425,
+      "permutation_p": 0.009900990099009901
+    },
+    {
+      "name": "regime_3_text_dominant",
+      "N": 636,
+      "pos_rate": 0.7248427867889404,
+      "auc_T": 0.8675674000619771,
+      "auc_TS": 0.8675674000619771,
+      "tau_bar": 0.0,
+      "ci_lower": 0.0,
+      "ci_upper": 0.0,
+      "permutation_p": 1.0
+    }
+  ],
+  "verdicts": {
+    "regime_1_ci_covers_zero": true,
+    "regime_1_perm_p_large": true,
+    "regime_2_tau_positive": false,
+    "regime_2_perm_p_small": true,
+    "regime_3_tau_small": true
+  }
+}

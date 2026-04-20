@@ -66,17 +66,31 @@ def _auc(y: np.ndarray, p: np.ndarray) -> float:
     return float(roc_auc_score(y, p))
 
 
+def _clip_logit(p: np.ndarray, eps: float = 1e-4) -> np.ndarray:
+    p = np.clip(p, eps, 1 - eps)
+    return np.log(p / (1 - p))
+
+
 def cross_fit_dml(
     X_T: np.ndarray,
     X_TS: np.ndarray,
     y: np.ndarray,
     fold_ids: np.ndarray,            # shape [N], integer fold index per pair
     make_learner=None,
+    scale: str = "logit",            # "logit" or "probability"
 ) -> DMLResult:
     """Cross-fit DML.
 
     Fits ``make_learner()`` twice per fold (once for η_T, once for η_TS) on
     non-held-out pairs, predicts on the held-out pairs. Returns DMLResult.
+
+    ``scale``:
+        "logit"       — τ̂_i = logit(η̂_TS) - logit(η̂_T). More stable under
+                        miscalibrated probability estimates (default).
+        "probability" — τ̂_i = η̂_TS - η̂_T. Keeps the natural probability
+                        scale but can be biased toward zero when two
+                        independently-fit classifiers have different
+                        calibration profiles.
     """
     if make_learner is None:
         make_learner = _DEFAULT_LEARNER
@@ -103,9 +117,18 @@ def cross_fit_dml(
         learner_TS.fit(X_TS[train_mask], y[train_mask])
         eta_TS[test_mask] = learner_TS.predict_proba(X_TS[test_mask])[:, 1]
 
-        fold_means.append(float((eta_TS[test_mask] - eta_T[test_mask]).mean()))
+        if scale == "logit":
+            fold_tau = _clip_logit(eta_TS[test_mask]) - _clip_logit(eta_T[test_mask])
+        else:
+            fold_tau = eta_TS[test_mask] - eta_T[test_mask]
+        fold_means.append(float(fold_tau.mean()))
 
-    tau_per_pair = eta_TS - eta_T
+    if scale == "logit":
+        tau_per_pair = _clip_logit(eta_TS) - _clip_logit(eta_T)
+    elif scale == "probability":
+        tau_per_pair = eta_TS - eta_T
+    else:
+        raise ValueError(f"Unknown scale: {scale}")
 
     return DMLResult(
         tau_per_pair=tau_per_pair,
