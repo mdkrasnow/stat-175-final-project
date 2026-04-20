@@ -1,0 +1,146 @@
+{
+  "full_graph": {
+    "num_nodes": 129375,
+    "num_edges": 4049642,
+    "node_type_counts": {
+      "biological_process": 28642,
+      "gene/protein": 27671,
+      "disease": 17080,
+      "effect/phenotype": 15311,
+      "anatomy": 14035,
+      "molecular_function": 11169,
+      "drug": 7957,
+      "cellular_component": 4176,
+      "pathway": 2516,
+      "exposure": 818
+    },
+    "relation_counts": {
+      "expression present": 1518203,
+      "synergistic interaction": 1336314,
+      "interacts with": 343275,
+      "ppi": 321075,
+      "phenotype present": 150145,
+      "parent-child": 140872,
+      "associated with": 83741,
+      "side effect": 64784,
+      "contraindication": 30634,
+      "expression absent": 19885,
+      "target": 16272,
+      "indication": 9293,
+      "enzyme": 5317,
+      "transporter": 3015,
+      "off-label use": 2456,
+      "linked to": 2304,
+      "phenotype absent": 1193,
+      "carrier": 864
+    }
+  },
+  "schemas": {
+    "A_drug_gene_disease": {
+      "description": "Drug\u2013gene/protein\u2013disease triangles: mechanism + indication",
+      "num_nodes": 52708,
+      "num_edges": 469337,
+      "num_target_edges": 9293,
+      "top5_component_sizes": [
+        31963,
+        4,
+        3,
+        3,
+        3
+      ],
+      "node_type_counts": {
+        "gene/protein": 27671,
+        "drug": 7957,
+        "disease": 17080
+      },
+      "relation_counts": {
+        "ppi": 321075,
+        "associated with": 80411,
+        "target": 16272,
+        "transporter": 3015,
+        "carrier": 864,
+        "enzyme": 5317,
+        "contraindication": 30634,
+        "indication": 9293,
+        "off-label use": 2456
+      }
+    },
+    "B_drug_pathway_disease": {
+      "description": "Drug\u2013gene/protein\u2013pathway\u2013disease chains: mechanism-of-action subgraph",
+      "num_nodes": 55224,
+      "num_edges": 511983,
+      "num_target_edges": 9293,
+      "top5_component_sizes": [
+        34554,
+        4,
+        3,
+        3,
+        3
+      ],
+      "node_type_counts": {
+        "gene/protein": 27671,
+        "drug": 7957,
+        "disease": 17080,
+        "pathway": 2516
+      },
+      "relation_counts": {
+        "ppi": 321075,
+        "associated with": 80411,
+        "interacts with": 42646,
+        "target": 16272,
+        "transporter": 3015,
+        "carrier": 864,
+        "enzyme": 5317,
+        "contraindication": 30634,
+        "indication": 9293,
+        "off-label use": 2456
+      }
+    },
+    "C_disease_phenotype_gene": {
+      "description": "Disease\u2013phenotype\u2013gene/protein: clinical presentation subgraph",
+      "num_nodes": 60062,
+      "num_edges": 556154,
+      "num_target_edges": 83741,
+      "top5_component_sizes": [
+        36986,
+        4,
+        3,
+        3,
+        3
+      ],
+      "node_type_counts": {
+        "gene/protein": 27671,
+        "effect/phenotype": 15311,
+        "disease": 17080
+      },
+      "relation_counts": {
+        "ppi": 321075,
+        "associated with": 83741,
+        "phenotype absent": 1193,
+        "phenotype present": 150145
+      }
+    },
+    "D_drug_disease_direct": {
+      "description": "Held-out: drug\u2013disease direct relations only (no intermediates)",
+      "num_nodes": 25037,
+      "num_edges": 42383,
+      "num_target_edges": 9293,
+      "top5_component_sizes": [
+        4024,
+        9,
+        8,
+        4,
+        4
+      ],
+      "node_type_counts": {
+        "drug": 7957,
+        "disease": 17080
+      },
+      "relation_counts": {
+        "contraindication": 30634,
+        "indication": 9293,
+        "off-label use": 2456
+      }
+    }
+  }
+}

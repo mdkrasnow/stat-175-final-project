@@ -21,21 +21,21 @@ Task-level detail with file paths, reusable archived code, and acceptance criter
 
 ## Phase 1 — Data & Samplers (Days 1–2)
 
-### 1.1 PrimeKG loader → `src/data/primekg_loader.py`
-- [ ] Lift `load_stark_dataset()` and `StarkGraphWrapper` from `archive/old_graphrag_project/src/data/stark_loader.py`. Strip out anything QA-retrieval specific; keep `_build_networkx_graph()` and `_extract_node_texts()`.
-- [ ] Add a caching layer: pickle the NetworkX graph + node-text dict to `data/cache/primekg_graph.pkl` on first load (old loader regenerated on every run — wasteful at 4M edges).
-- [ ] Expose: `load_primekg() -> (nx.Graph, dict[node_id -> text], dict[node_id -> node_type], dict[edge -> relation_type])`.
-- [ ] Acceptance: `load_primekg()` returns graph with 129,375 nodes, 4,049,642 edges (sanity check matches `archive/.../results/prime_graph_summary.json`).
+### 1.1 PrimeKG loader → `src/data/primekg_loader.py` ✅
+- [x] Lift loader, add node-type + relation-type capture (old loader didn't have these)
+- [x] Pickle cache at `data/cache/primekg_graph.pkl` (first run ~3 min, cached load <5 s)
+- [x] Exposes `PrimeKG` dataclass + `load_primekg()`
+- [x] Verified: 129,375 nodes, 4,049,642 edges (exact match)
 
-### 1.2 Schema partitioning → `src/data/schemas.py`
-- [ ] Inventory PrimeKG node types (drug, disease, gene/protein, pathway, phenotype, anatomy, …) and edge/relation types — dump counts to `results/schema_inventory.json`.
-- [ ] Implement `induce_schema_subgraph(G, allowed_node_types, allowed_relation_types) -> nx.Graph`.
-- [ ] Define four schemas as dicts (see `PIVOT_DESIGN.md §Schema-Generalization Layer`):
-  - **A:** drug–gene–disease triangles
-  - **B:** drug–protein–pathway–disease chains
-  - **C:** disease–phenotype–gene
-  - **D (held-out):** drug–disease direct only
-- [ ] Acceptance: each schema subgraph has ≥10k edges and ≥1 connected component of ≥1k nodes; log sizes to `results/schema_inventory.json`.
+### 1.2 Schema partitioning → `src/data/schemas.py` ✅
+- [x] `Schema` dataclass, four schemas defined (A/B/C/D) with real PrimeKG node and relation vocab
+- [x] `induce_schema_subgraph()`, `target_edges()`, `schema_inventory()`
+- [x] Inventory written to `results/schema_inventory.json`
+- [x] All four schemas pass acceptance (≥10k edges, ≥1k-node component):
+  - A (drug–gene/protein–disease): 52,708 nodes / 469,337 edges / 9,293 indication targets / largest cc 31,963
+  - B (+pathway): 55,224 / 511,983 / 9,293 / 34,554
+  - C (disease–phenotype–gene): 60,062 / 556,154 / 83,741 associated-with targets / 36,986
+  - D (drug–disease direct, held-out): 25,037 / 42,383 / 9,293 / 4,024
 
 ### 1.3 Link-prediction splits → `src/data/splits.py`
 - [ ] Adapt `split_dataset()` from `archive/old_graphrag_project/src/data/qctr_data.py` for edge-level splits instead of query-level.
