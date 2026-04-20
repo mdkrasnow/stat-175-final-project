@@ -33,7 +33,7 @@ import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from src.data import ALL_SCHEMAS, SCHEMAS_BY_NAME, Schema
+from src.data import ALL_SCHEMAS, Schema
 from src.data.splits import load_fold
 from src.estimation.features import (
     hadamard_features,
