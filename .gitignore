@@ -35,3 +35,10 @@ results/amazon_cache/
 *.egg-info/
 dist/
 build/
+venv/
+.venv/
+
+# New project caches
+data/cache/
+data/embeddings/
+data/splits/
