@@ -1,0 +1,186 @@
+{
+  "A_drug_gene_disease": {
+    "deepwalk": {
+      "tau_bar_ood": 0.023234477266669273,
+      "ci_lower": 0.019637968903407455,
+      "ci_upper": 0.02701286966912448,
+      "auc_T_ood": 0.9944699708437817,
+      "auc_TS_ood": 0.9973424638899453,
+      "n_test_pairs": 63912,
+      "n_train_pairs": 696990,
+      "tau_bar_in_dist": -0.00502470089122653,
+      "transfer_gap": 0.028259178157895803
+    },
+    "node2vec_bfs": {
+      "tau_bar_ood": 0.025595705956220627,
+      "ci_lower": 0.021557172667235138,
+      "ci_upper": 0.0301057705655694,
+      "auc_T_ood": 0.9944699708437817,
+      "auc_TS_ood": 0.9971410857738252,
+      "n_test_pairs": 63912,
+      "n_train_pairs": 696990,
+      "tau_bar_in_dist": -0.00446503609418869,
+      "transfer_gap": 0.030060742050409317
+    },
+    "node2vec_dfs": {
+      "tau_bar_ood": 0.012399929575622082,
+      "ci_lower": 0.007794811902567746,
+      "ci_upper": 0.017503602942451835,
+      "auc_T_ood": 0.9944699708437817,
+      "auc_TS_ood": 0.9965442855452721,
+      "n_test_pairs": 63912,
+      "n_train_pairs": 696990,
+      "tau_bar_in_dist": -0.005540873855352402,
+      "transfer_gap": 0.017940803430974483
+    },
+    "graphsage": {
+      "tau_bar_ood": -0.06704361736774445,
+      "ci_lower": -0.07408031169325113,
+      "ci_upper": -0.060706441011279824,
+      "auc_T_ood": 0.9944699708437817,
+      "auc_TS_ood": 0.9787065947214533,
+      "n_test_pairs": 63912,
+      "n_train_pairs": 696990,
+      "tau_bar_in_dist": -0.0024883421137928963,
+      "transfer_gap": -0.06455527525395155
+    }
+  },
+  "B_drug_pathway_disease": {
+    "deepwalk": {
+      "tau_bar_ood": 0.02741364575922489,
+      "ci_lower": 0.02373195723630488,
+      "ci_upper": 0.03148518558591604,
+      "auc_T_ood": 0.9954057412254795,
+      "auc_TS_ood": 0.9971362588524685,
+      "n_test_pairs": 63716,
+      "n_train_pairs": 697186,
+      "tau_bar_in_dist": 0.00033489419729448855,
+      "transfer_gap": 0.027078751561930403
+    },
+    "node2vec_bfs": {
+      "tau_bar_ood": 0.016768338158726692,
+      "ci_lower": 0.012744602118618787,
+      "ci_upper": 0.021106141014024613,
+      "auc_T_ood": 0.9954057412254795,
+      "auc_TS_ood": 0.9976447396340472,
+      "n_test_pairs": 63716,
+      "n_train_pairs": 697186,
+      "tau_bar_in_dist": -0.0013678609393537045,
+      "transfer_gap": 0.018136199098080397
+    },
+    "node2vec_dfs": {
+      "tau_bar_ood": 0.03899646922945976,
+      "ci_lower": 0.0353680026717484,
+      "ci_upper": 0.042439574375748634,
+      "auc_T_ood": 0.9954057412254795,
+      "auc_TS_ood": 0.9963803679395464,
+      "n_test_pairs": 63716,
+      "n_train_pairs": 697186,
+      "tau_bar_in_dist": -0.0003234569448977709,
+      "transfer_gap": 0.03931992617435753
+    },
+    "graphsage": {
+      "tau_bar_ood": -0.036885760724544525,
+      "ci_lower": -0.04199091615155339,
+      "ci_upper": -0.03208054602146149,
+      "auc_T_ood": 0.9954057412254795,
+      "auc_TS_ood": 0.9891120053221605,
+      "n_test_pairs": 63716,
+      "n_train_pairs": 697186,
+      "tau_bar_in_dist": 0.0014878317015245557,
+      "transfer_gap": -0.03837359242606908
+    }
+  },
+  "C_disease_phenotype_gene": {
+    "deepwalk": {
+      "tau_bar_ood": 0.08325118571519852,
+      "ci_lower": 0.07844313457608224,
+      "ci_upper": 0.0880221452564001,
+      "auc_T_ood": 0.473723098976028,
+      "auc_TS_ood": 0.9298837327345147,
+      "n_test_pairs": 569722,
+      "n_train_pairs": 191180,
+      "tau_bar_in_dist": 0.012001789174973965,
+      "transfer_gap": 0.07124939654022455
+    },
+    "node2vec_bfs": {
+      "tau_bar_ood": 0.05810154229402542,
+      "ci_lower": 0.054637134168297054,
+      "ci_upper": 0.06175202690064907,
+      "auc_T_ood": 0.473723098976028,
+      "auc_TS_ood": 0.9227257698215865,
+      "n_test_pairs": 569722,
+      "n_train_pairs": 191180,
+      "tau_bar_in_dist": 0.011261838488280773,
+      "transfer_gap": 0.04683970380574465
+    },
+    "node2vec_dfs": {
+      "tau_bar_ood": 0.05106336250901222,
+      "ci_lower": 0.04755533877760172,
+      "ci_upper": 0.05436975127086043,
+      "auc_T_ood": 0.473723098976028,
+      "auc_TS_ood": 0.9224964431595906,
+      "n_test_pairs": 569722,
+      "n_train_pairs": 191180,
+      "tau_bar_in_dist": 0.011659780517220497,
+      "transfer_gap": 0.039403581991791725
+    },
+    "graphsage": {
+      "tau_bar_ood": 0.012186829932034016,
+      "ci_lower": 0.010973599296994508,
+      "ci_upper": 0.01352813907433301,
+      "auc_T_ood": 0.473723098976028,
+      "auc_TS_ood": 0.5735876813568028,
+      "n_test_pairs": 569722,
+      "n_train_pairs": 191180,
+      "tau_bar_in_dist": 0.010661236941814423,
+      "transfer_gap": 0.001525592990219593
+    }
+  },
+  "D_drug_disease_direct": {
+    "deepwalk": {
+      "tau_bar_ood": 0.05193696171045303,
+      "ci_lower": 0.0468059042468667,
+      "ci_upper": 0.05718520041555166,
+      "auc_T_ood": 0.954193928242917,
+      "auc_TS_ood": 0.9829140256618523,
+      "n_test_pairs": 63552,
+      "n_train_pairs": 697350,
+      "tau_bar_in_dist": -0.012942624278366566,
+      "transfer_gap": 0.0648795859888196
+    },
+    "node2vec_bfs": {
+      "tau_bar_ood": 0.052098359912633896,
+      "ci_lower": 0.0469339556992054,
+      "ci_upper": 0.05710599897429347,
+      "auc_T_ood": 0.954193928242917,
+      "auc_TS_ood": 0.9824342730630337,
+      "n_test_pairs": 63552,
+      "n_train_pairs": 697350,
+      "tau_bar_in_dist": -0.009671533480286598,
+      "transfer_gap": 0.061769893392920494
+    },
+    "node2vec_dfs": {
+      "tau_bar_ood": 0.08523955196142197,
+      "ci_lower": 0.08084301352500915,
+      "ci_upper": 0.08973063360899687,
+      "auc_T_ood": 0.954193928242917,
+      "auc_TS_ood": 0.9851049075495993,
+      "n_test_pairs": 63552,
+      "n_train_pairs": 697350,
+      "tau_bar_in_dist": -0.003906352445483208,
+      "transfer_gap": 0.08914590440690517
+    },
+    "graphsage": {
+      "tau_bar_ood": -0.05114404857158661,
+      "ci_lower": -0.0628228286281228,
+      "ci_upper": -0.039627720322459946,
+      "auc_T_ood": 0.954193928242917,
+      "auc_TS_ood": 0.7677288978658452,
+      "n_test_pairs": 63552,
+      "n_train_pairs": 697350,
+      "tau_bar_in_dist": 0.00377521850168705,
+      "transfer_gap": -0.05491926707327366
+    }
+  }
+}
