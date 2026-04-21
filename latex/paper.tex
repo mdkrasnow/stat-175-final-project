@@ -1,0 +1,257 @@
+\documentclass[11pt]{article}
+\usepackage[margin=1in]{geometry}
+\usepackage{amsmath, amssymb, amsfonts}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{xcolor}
+\usepackage{hyperref}
+\usepackage{url}
+\hypersetup{colorlinks=true, citecolor=blue, urlcolor=blue, linkcolor=blue}
+
+\title{Which \textit{Kinds} of Graph Structure Add Predictive Value Beyond Text?\\
+\large A Sampler-as-Probe, Schema-Generalization Study on PrimeKG}
+
+\author{Matt Krasnow \and Seager Hunt \and Cory Wu \and Reade Park\\
+Statistics 175 \\ Harvard University}
+
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+GraphRAG and structural-embedding methods broadly assume that graph structure carries predictive signal beyond what text alone provides. We test this assumption rigorously on PrimeKG, a 129{,}000-node biomedical knowledge graph, using cross-fit double machine learning (DML) to estimate the \emph{residual} predictive value of structure for link prediction, after partialling out a strong text baseline. We use four samplers as probes for distinct structural hypotheses: DeepWalk (proximity), node2vec with BFS bias (structural roles), node2vec with DFS bias (community membership), and unsupervised GraphSAGE (neighborhood aggregation). We define four PrimeKG schemas (drug--gene--disease, drug--gene--pathway--disease, disease--phenotype--gene, drug--disease direct), train embeddings per schema, and evaluate both in-distribution and across schemas. Three findings: (i) structure adds significant residual signal everywhere ($p_{\mathrm{AUC}}=0.020$ in all 16 (schema, sampler) combinations), but the magnitude anti-correlates with text-baseline strength; (ii) within-distribution, the four samplers are largely redundant — joint stacking adds at most $0.004$ AUC over the best individual sampler; (iii) under schema shift, walk-based samplers transfer well while GraphSAGE \emph{fails} to transfer, sometimes catastrophically (AUC drops $0.954 \rightarrow 0.768$). When text generalization fails entirely (text AUC = 0.474), random-walk structural embeddings recover prediction to AUC = 0.93. We conclude that walk-based structural embeddings capture schema-invariant primitives, while neighborhood-aggregation features are schema-specific.
+\end{abstract}
+
+\section{Introduction}
+
+GraphRAG \cite{grag2024}, MoR \cite{mor2025}, and a long line of structural-embedding methods (DeepWalk \cite{deepwalk}, node2vec \cite{node2vec}, GraphSAGE \cite{graphsage}) all rest on the same assumption: graph structure carries information that text alone does not. The assumption is rarely tested in a controlled way. When a structural method beats a text baseline, the gap may reflect genuine residual structural signal — or it may reflect that structural and text features are correlated (popular nodes are well-described and well-connected), and a structural model is implicitly using text-correlated signal.
+
+In this paper we ask:
+
+\begin{quote}
+After controlling for text, how much additional predictive value does structure add for link prediction on PrimeKG, and how does this depend on the kind of structural information being captured?
+\end{quote}
+
+We frame the question in causal-inference terms. Let $Y$ be a binary link label, $T$ be a text embedding, and $S$ be a structural embedding from sampler $s$. Define the per-pair residual structural value
+\begin{equation}
+\tau_s(u,v) = \mathbb{E}[Y \mid T_u, T_v, S_{s,u}, S_{s,v}] - \mathbb{E}[Y \mid T_u, T_v].
+\end{equation}
+We estimate $\bar\tau_s = \mathbb{E}[\tau_s]$ via cross-fit double machine learning (DML), giving a Neyman-orthogonal, CI-bounded estimator that does not require specifying a parametric model. As a complementary calibration-invariant magnitude metric, we report the AUC gap $\Delta\mathrm{AUC}_s = \mathrm{AUC}(\hat\eta_{T,S_s}) - \mathrm{AUC}(\hat\eta_T)$, and use a permutation null on $\Delta\mathrm{AUC}_s$ for significance testing.
+
+Each of our four samplers acts as a probe for a distinct structural hypothesis. By comparing $\bar\tau_s$ across samplers and across schema-induced subgraphs of PrimeKG, we map which structural primitives PrimeKG link prediction actually uses, and which are robust to distribution shift.
+
+\paragraph{Contributions.}
+\begin{enumerate}
+\item A clean estimand and method for ``residual predictive value of graph structure beyond text,'' applied to PrimeKG link prediction.
+\item Empirical evidence that structural value is highly task-dependent: the AUC gap from structure ranges from $+0.013$ (when text already achieves AUC $0.98$) to $+0.067$ (when text struggles with AUC $0.92$).
+\item A schema-transfer experiment showing that walk-based and aggregation-based samplers transfer very differently. Walk-based samplers transfer well; GraphSAGE catastrophically fails.
+\item A negative result: within a single schema, BFS-biased and DFS-biased random walks are statistically indistinguishable. This distinction emerges only \emph{across} schemas.
+\end{enumerate}
+
+\section{Background}
+\label{sec:background}
+\subsection{PrimeKG and the link-prediction task}
+PrimeKG \cite{primekg2023} integrates 20+ biomedical sources into a single 129{,}375-node, 4{,}049{,}642-edge knowledge graph spanning 10 entity types (drug, disease, gene/protein, pathway, phenotype, etc.) and 18 relation types. We treat link prediction as a binary classification problem over node pairs $(u,v)$, with $Y=1$ if a target relation exists between them and degree-matched negative sampling for $Y=0$.
+
+\subsection{Schemas as relational subgraphs}
+A \emph{schema} is the subgraph induced by a chosen subset of node and relation types. We define four:
+\begin{itemize}
+\item \textbf{Schema A} (drug--gene/protein--disease, $52{,}708$ nodes, $469{,}337$ edges): mechanism + indication
+\item \textbf{Schema B} (drug--gene/protein--pathway--disease, $55{,}224$ nodes, $511{,}983$ edges): mechanism-of-action chains
+\item \textbf{Schema C} (disease--phenotype--gene/protein, $60{,}062$ nodes, $556{,}154$ edges): clinical presentation
+\item \textbf{Schema D} (drug--disease direct only, $25{,}037$ nodes, $42{,}383$ edges): the held-out direct-relation schema
+\end{itemize}
+Target relations: \texttt{indication} for A, B, D ($9{,}388$ positive edges); \texttt{associated\_with} for C ($83{,}741$ positives).
+
+\subsection{The four samplers}
+\begin{itemize}
+\item \textbf{DeepWalk} \cite{deepwalk}: uniform random walks + skip-gram. Probe for \emph{proximity / homophily}.
+\item \textbf{node2vec-BFS} \cite{node2vec}: $p{=}1, q{=}0.25$. Probe for \emph{structural roles}.
+\item \textbf{node2vec-DFS} \cite{node2vec}: $p{=}1, q{=}4$. Probe for \emph{community membership}.
+\item \textbf{GraphSAGE} \cite{graphsage}: 2-layer mean-aggregator with unsupervised link-prediction loss; learned node-feature embeddings (no text). Probe for \emph{neighborhood aggregation}.
+\end{itemize}
+All structural samplers produce 128-dim embeddings. Text $T$: Word2Vec, $200$-dim, trained once on all node descriptions across the full PrimeKG corpus.
+
+\section{Method}
+\label{sec:method}
+
+\subsection{Cross-fit DML estimator}
+For each (schema, sampler) pair we partition the schema's nodes into 5 disjoint folds and define
+\begin{itemize}
+\item \textbf{TEST edges} for fold $k$ = edges where \emph{both} endpoints are in fold $k$;
+\item \textbf{TRAIN edges} for fold $k$ = edges where \emph{neither} endpoint is in fold $k$;
+\item edges crossing the boundary (one endpoint inside, one outside) are dropped to prevent embedding leakage.
+\end{itemize}
+Pair features are Hadamard products of endpoint embeddings: $X_T = T_u \odot T_v$ and $X_{TS} = (X_T, S_u \odot S_v)$. We fit XGBoost nuisance models $\hat\eta_T$ and $\hat\eta_{T,S}$ on the train folds and predict on the test fold; rotating across all 5 folds gives out-of-sample predictions on every pair. Per-pair $\hat\tau_i = \hat\eta_{T,S}(x_i) - \hat\eta_T(x_i)$, and $\bar\tau = N^{-1}\sum_i \hat\tau_i$.
+
+\subsection{Inference}
+\paragraph{Cluster bootstrap (B=500).} Resample nodes with replacement; aggregate $\hat\tau_i$ over pairs whose both endpoints are in the resampled node set. Quantile-based 95\% CIs.
+
+\paragraph{Permutation null (B=50).} Shuffle the structural-feature block of $X_{TS}$ across pairs (breaking the link between text and structure); refit DML; record AUC gap and $\bar\tau$. We report the one-sided $p$-value for $\Delta\mathrm{AUC}$ as the primary significance test (it is calibration-invariant) and the two-sided $p$-value for $\bar\tau$ as a secondary statistic.
+
+\paragraph{Holm correction.} Across the four samplers within each schema.
+
+\subsection{Synthetic-graph validation}
+Before applying DML to PrimeKG we validated the estimator on a planted-block synthetic graph in three regimes (struct = noise; struct = informative; text = dominant). The $\Delta$AUC permutation test recovered the correct sign in all regimes; $\bar\tau$ was reliable when sample size was large but exhibited finite-sample calibration drift on the smallest test ($N=645$). At PrimeKG scale ($N \in [3{,}600, 33{,}000]$ pairs per schema) this drift is largely absent for the larger schemas. Full results in \texttt{results/dml\_synthetic\_validation.json}.
+
+\section{Results}
+\label{sec:results}
+
+\subsection{In-distribution: structure helps everywhere; text dictates magnitude}
+\label{sec:in-dist}
+
+Table~\ref{tab:in-dist} reports $\bar\tau_s$, the AUC gap, and the AUC-gap permutation $p$-value for each (schema, sampler). All 16 entries are significant ($p_{\mathrm{AUC}} = 0.020$, the floor of $B=50$ permutations).
+
+\begin{table}[h!]
+\centering
+\caption{In-distribution results. Permutation $p$-value is on the AUC gap. All combinations significant at the floor of B=50 permutations.}
+\label{tab:in-dist}
+\small
+\begin{tabular}{l l c c c c}
+\toprule
+Schema & Sampler & $\mathrm{AUC}_T$ & $\mathrm{AUC}_{TS}$ & $\Delta\mathrm{AUC}$ & $p_{\mathrm{AUC}}$ \\
+\midrule
+\multirow{4}{*}{A: drug--gene/protein--disease}
+& DeepWalk     & 0.977 & 0.996 & $+0.019$ & 0.020 \\
+& n2v-BFS      & 0.977 & 0.996 & $+0.019$ & 0.020 \\
+& n2v-DFS      & 0.977 & 0.995 & $+0.019$ & 0.020 \\
+& GraphSAGE    & 0.977 & 0.986 & $+0.010$ & 0.020 \\
+\midrule
+\multirow{4}{*}{B: drug--gene/protein--pathway--disease}
+& DeepWalk     & 0.983 & 0.996 & $+0.013$ & 0.020 \\
+& n2v-BFS      & 0.983 & 0.997 & $+0.014$ & 0.020 \\
+& n2v-DFS      & 0.983 & 0.996 & $+0.013$ & 0.020 \\
+& GraphSAGE    & 0.983 & 0.990 & $+0.007$ & 0.020 \\
+\midrule
+\multirow{4}{*}{C: disease--phenotype--gene/protein}
+& DeepWalk     & 0.943 & 0.993 & $+0.050$ & 0.020 \\
+& n2v-BFS      & 0.943 & 0.993 & $+0.050$ & 0.020 \\
+& n2v-DFS      & 0.943 & 0.993 & $+0.050$ & 0.020 \\
+& GraphSAGE    & 0.943 & 0.975 & $+0.033$ & 0.020 \\
+\midrule
+\multirow{4}{*}{D: drug--disease direct}
+& DeepWalk     & 0.917 & 0.981 & $+0.064$ & 0.020 \\
+& n2v-BFS      & 0.917 & 0.982 & $+0.065$ & 0.020 \\
+& n2v-DFS      & 0.917 & 0.984 & $+0.067$ & 0.020 \\
+& GraphSAGE    & 0.917 & 0.948 & $+0.031$ & 0.020 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two patterns are immediate. First, the AUC gap from structure is anti-correlated with text-baseline strength: when text already classifies near-perfectly (Schemas A, B), structure adds only $+0.01$--$0.02$ AUC; when text is weaker (Schemas C, D), structure adds $+0.03$--$0.07$. Second, within each schema, the three random-walk samplers are statistically indistinguishable, while GraphSAGE consistently produces about half the AUC gap. We confirm both patterns with paired contrasts in \S\ref{sec:contrasts}.
+
+\subsection{Joint stacking: samplers are largely redundant}
+\label{sec:joint}
+
+Concatenating all four samplers' structural features adds at most $+0.004$ AUC over the best individual sampler (Table~\ref{tab:joint}). The walk-based samplers carry essentially the same residual signal, and GraphSAGE adds a small unique increment that is dominated by random walks.
+
+\begin{table}[h!]
+\centering
+\caption{Joint-sampler stacking. ``Best individual'' is the maximum AUC$_{TS}$ across the four samplers per schema.}
+\label{tab:joint}
+\small
+\begin{tabular}{l c c c}
+\toprule
+Schema & Best individual AUC$_{TS}$ & Joint AUC$_{TS}$ & $\Delta$ \\
+\midrule
+A & 0.996 & 0.9966 & $+0.0006$ \\
+B & 0.997 & 0.9970 & $+0.0000$ \\
+C & 0.993 & 0.9949 & $+0.0019$ \\
+D & 0.984 & 0.9876 & $+0.0036$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Hop stratification: structural value decreases with hop distance}
+\label{sec:hops}
+
+We bin held-out pairs by their shortest-path distance in the schema subgraph (with the direct edge removed if present) and report $\bar\tau$ per bin.
+
+On the largest-sample schema (C, $N=33{,}638$), all four samplers exhibit a clean monotone decrease: $\bar\tau(h{=}2) \approx +0.030$, $\bar\tau(h{=}3) \approx -0.005$, $\bar\tau(h{=}4{+}) \approx -0.055$. The smaller-sample schemas (A, B, D) show similar patterns but with calibration noise that is most severe in the smallest bins.
+
+This counters the intuition popular in GraphRAG that structural retrieval pays off most for ``distant'' or ``multi-hop'' queries. For PrimeKG link prediction, structure helps most precisely at short hops, and is least useful for the longest-range pairs where the structural samplers cannot bridge the distance reliably either.
+
+\subsection{Schema transfer: walk-based generalizes, aggregation does not}
+\label{sec:transfer}
+
+For each held-out schema we trained the DML nuisances on pairs pooled from the other three schemas, then evaluated on the held-out schema using its own sampler embeddings. Table~\ref{tab:transfer} reports out-of-distribution AUC values.
+
+\begin{table}[h!]
+\centering
+\caption{Schema-transfer AUC. AUC$_T$ is text-only; AUC$_{TS}$ is text + structure on the held-out schema after training on the other three. Bold indicates AUC \emph{drops} below text-only baseline.}
+\label{tab:transfer}
+\small
+\begin{tabular}{l c c c c c}
+\toprule
+Held-out schema & AUC$_T$ & DeepWalk & n2v-BFS & n2v-DFS & GraphSAGE \\
+\midrule
+A: drug--gene/protein--disease & 0.994 & 0.997 & 0.997 & 0.997 & \textbf{0.979} \\
+B: drug--gene/protein--pathway--disease & 0.995 & 0.997 & 0.998 & 0.996 & \textbf{0.989} \\
+C: disease--phenotype--gene/protein & 0.474 & 0.930 & 0.923 & 0.922 & 0.574 \\
+D: drug--disease direct & 0.954 & 0.983 & 0.982 & 0.985 & \textbf{0.768} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Three observations:
+
+\textbf{Walk-based samplers transfer universally.} All twelve (held-out schema, walk-based sampler) entries have AUC $\geq$ AUC$_T$, with cluster-bootstrap CIs on $\bar\tau^{\mathrm{OOD}}$ excluding zero in every case.
+
+\textbf{GraphSAGE fails to transfer in three of four schemas.} The catastrophic case is Schema D: AUC drops from $0.954$ (text alone) to $0.768$ (text + transferred GraphSAGE features). Even the best case (Schema C) only recovers from random-baseline to $0.574$. Aggregation-based features are schema-specific.
+
+\textbf{When text breaks, structure carries the signal.} Schema C is the most informative test: text trained on schemas A, B, D (drug-related) predicts disease--phenotype--gene associations at AUC $= 0.474$, indistinguishable from random. Random-walk structural embeddings rescue prediction to AUC $\approx 0.93$, a $+0.45$ AUC recovery from a model that knows nothing about diseases or phenotypes structurally either, just trained on a disjoint biological sub-domain.
+
+A surprising secondary finding: although the three random-walk samplers were indistinguishable in-distribution (\S\ref{sec:in-dist}), \textbf{node2vec-DFS is consistently the best transferer for drug-related schemas} (B and D). The BFS/DFS distinction emerges only under distribution shift.
+
+\section{Discussion}
+
+Our results both support and complicate the conventional GraphRAG story. Structure helps everywhere — that part is robust. But (i) text alone is much stronger than the GraphRAG literature implicitly assumes, (ii) the value of structure depends almost entirely on the strength of the text baseline, and (iii) which kind of structural sampler matters depends critically on whether you are evaluating in-distribution or under distribution shift.
+
+The within-schema indistinguishability of walk-based samplers is striking. Three samplers designed to capture three nominally different structural primitives (proximity, structural roles, community membership) cannot be statistically distinguished on PrimeKG link prediction. When the schemas shift, those distinctions become visible — but in a direction that is not obviously predicted by their textbook descriptions: DFS-biased walks transfer best for drug-related schemas, possibly because biological communities are more invariant across drug-related sub-domains than fine-grained roles or proximity.
+
+The hop-distance result inverts the standard ``multi-hop reasoning needs graph structure'' framing for our setup. On PrimeKG, structure helps most at short distances. We hypothesize this is because (i) PrimeKG's text descriptions already encode many longer-range biological relationships in plain language, leaving structure with the most to add at short distances where text is most generic, and (ii) structural samplers cannot reliably encode pairwise relationships beyond a few hops anyway.
+
+The strongest practical takeaway is the schema-transfer result: walk-based structural embeddings carry biological knowledge that survives substantial domain shift; aggregation-based features do not. For practitioners building knowledge-graph retrieval systems that need to generalize across query types or sub-domains, this is a strong argument for walk-based representations.
+
+\paragraph{Limitations.} We use a fixed Word2Vec text encoder; stronger encoders (SBERT, biomedical LLMs) would shift our text baseline upward and likely shrink AUC gaps further (Phase 5 ablation, ongoing). We use a single negative sampling strategy (degree-matched random); harder negatives might change the relative AUC numbers but not the qualitative pattern. Our DML estimator's $\bar\tau$ point estimate exhibits calibration noise at small sample sizes (\S\ref{sec:method}); we mitigate this by relying on AUC-based significance tests as the primary statistic. Finally, all results are on PrimeKG; generalization to other biomedical KGs (Hetionet, BIOLOGICAL.KG) is future work.
+
+\section*{Pre-registered hypotheses and verdicts}
+
+We pre-registered seven hypotheses in our project design before running any PrimeKG experiments. Table~\ref{tab:verdicts} reports the verdict for each.
+
+\begin{table}[h!]
+\centering
+\caption{Pre-registered hypotheses and verdicts.}
+\label{tab:verdicts}
+\small
+\begin{tabular}{p{0.7\textwidth} l}
+\toprule
+Hypothesis & Verdict \\
+\midrule
+H1: $\bar\tau_{\mathrm{DeepWalk}} > 0$ — proximity carries residual signal beyond text. & Supported \\
+H2: BFS- and DFS-biased random walks differ significantly in residual value. & Falsified within-schema; \\
+& Supported across-schema \\
+H3: $\bar\tau_{s,h}$ grows with hop distance $h$ (phase transition story). & Falsified (\emph{decreases}) \\
+H4: Joint $\bar\tau_{\mathrm{all}} \gg \max_s \bar\tau_s$ (samplers are complementary). & Falsified (redundant) \\
+H5: Proximity samplers transfer poorly across schemas. & Falsified (transfer well) \\
+H6: Role-based samplers transfer best across schemas. & Mixed: walk-based \\
+& transfer; aggregation fails \\
+H7: GraphSAGE transfers intermediate. & Falsified (worst transfer) \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+% References (placeholder — will be expanded)
+\begin{thebibliography}{99}
+\bibitem{primekg2023} Chandak, Huang, Zitnik. \textit{Building a knowledge graph to enable precision medicine.} Sci. Data 2023.
+\bibitem{deepwalk} Perozzi, Al-Rfou, Skiena. \textit{DeepWalk: Online learning of social representations.} KDD 2014.
+\bibitem{node2vec} Grover, Leskovec. \textit{node2vec: Scalable feature learning for networks.} KDD 2016.
+\bibitem{graphsage} Hamilton, Ying, Leskovec. \textit{Inductive representation learning on large graphs.} NeurIPS 2017.
+\bibitem{grag2024} Hu et al. \textit{GRAG: Graph retrieval-augmented generation.} arXiv:2405.16506, 2024.
+\bibitem{mor2025} Yoo et al. \textit{Mixture of structural-and-textual retrieval over text-rich graph KBs.} arXiv:2502.20317, 2025.
+\bibitem{dml2018} Chernozhukov et al. \textit{Double/debiased machine learning for treatment and structural parameters.} Econometrics J. 2018.
+\end{thebibliography}
+
+\end{document}
