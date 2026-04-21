@@ -1,0 +1,178 @@
+{
+  "A_drug_gene_disease": {
+    "deepwalk__minus__node2vec_bfs": {
+      "mean_diff": -0.0005596640985459089,
+      "ci_lower": -0.004911014949902892,
+      "ci_upper": 0.0039060788461938493,
+      "ci_se": 0.0022112423734666565,
+      "excludes_zero": false
+    },
+    "deepwalk__minus__node2vec_dfs": {
+      "mean_diff": 0.0005161731969565153,
+      "ci_lower": -0.003862687450600787,
+      "ci_upper": 0.0047366363578475994,
+      "ci_se": 0.0022413755059540927,
+      "excludes_zero": false
+    },
+    "deepwalk__minus__graphsage": {
+      "mean_diff": -0.0025363576132804155,
+      "ci_lower": -0.00801285218913108,
+      "ci_upper": 0.0024709297460503874,
+      "ci_se": 0.002683828988009715,
+      "excludes_zero": false
+    },
+    "node2vec_bfs__minus__node2vec_dfs": {
+      "mean_diff": 0.0010758372955024242,
+      "ci_lower": -0.003683385858312249,
+      "ci_upper": 0.005687475774902849,
+      "ci_se": 0.002365813984190073,
+      "excludes_zero": false
+    },
+    "node2vec_bfs__minus__graphsage": {
+      "mean_diff": -0.0019766944460570812,
+      "ci_lower": -0.007272678986191744,
+      "ci_upper": 0.0027213738125283246,
+      "ci_se": 0.002589189932251755,
+      "excludes_zero": false
+    },
+    "node2vec_dfs__minus__graphsage": {
+      "mean_diff": -0.003052531974390149,
+      "ci_lower": -0.008239478664472699,
+      "ci_upper": 0.0020467201364226632,
+      "ci_se": 0.0027222347570968223,
+      "excludes_zero": false
+    }
+  },
+  "B_drug_pathway_disease": {
+    "deepwalk__minus__node2vec_bfs": {
+      "mean_diff": 0.0017027556896209717,
+      "ci_lower": -0.0016484283522004246,
+      "ci_upper": 0.0047680314397439355,
+      "ci_se": 0.0017119158222789635,
+      "excludes_zero": false
+    },
+    "deepwalk__minus__node2vec_dfs": {
+      "mean_diff": 0.0006583510548807681,
+      "ci_lower": -0.0034185349592007696,
+      "ci_upper": 0.0045641138916835185,
+      "ci_se": 0.0020144553108793015,
+      "excludes_zero": false
+    },
+    "deepwalk__minus__graphsage": {
+      "mean_diff": -0.0011529367184266448,
+      "ci_lower": -0.005305514251813292,
+      "ci_upper": 0.003084375709295269,
+      "ci_se": 0.002116188746396706,
+      "excludes_zero": false
+    },
+    "node2vec_bfs__minus__node2vec_dfs": {
+      "mean_diff": -0.001044404343701899,
+      "ci_lower": -0.005128181970212607,
+      "ci_upper": 0.0030415544868446845,
+      "ci_se": 0.0020098018674784687,
+      "excludes_zero": false
+    },
+    "node2vec_bfs__minus__graphsage": {
+      "mean_diff": -0.0028556925244629383,
+      "ci_lower": -0.0063837420078925785,
+      "ci_upper": 0.001366808911552652,
+      "ci_se": 0.0020924964085028246,
+      "excludes_zero": false
+    },
+    "node2vec_dfs__minus__graphsage": {
+      "mean_diff": -0.0018112880643457174,
+      "ci_lower": -0.005881505575962365,
+      "ci_upper": 0.0028071174223441627,
+      "ci_se": 0.0022217502705883445,
+      "excludes_zero": false
+    }
+  },
+  "C_disease_phenotype_gene": {
+    "deepwalk__minus__node2vec_bfs": {
+      "mean_diff": 0.0007399500464089215,
+      "ci_lower": -0.0016775788913946596,
+      "ci_upper": 0.0029270552331581707,
+      "ci_se": 0.001222604377608799,
+      "excludes_zero": false
+    },
+    "deepwalk__minus__node2vec_dfs": {
+      "mean_diff": 0.0003420102584641427,
+      "ci_lower": -0.001998624572297558,
+      "ci_upper": 0.0025078410864807664,
+      "ci_se": 0.0011414770720756893,
+      "excludes_zero": false
+    },
+    "deepwalk__minus__graphsage": {
+      "mean_diff": 0.001340554910711944,
+      "ci_lower": -0.0018665693583898245,
+      "ci_upper": 0.004599369724746793,
+      "ci_se": 0.0016661033041415053,
+      "excludes_zero": false
+    },
+    "node2vec_bfs__minus__node2vec_dfs": {
+      "mean_diff": -0.0003979398461524397,
+      "ci_lower": -0.00254550346871838,
+      "ci_upper": 0.0019739796785870557,
+      "ci_se": 0.0011806914402363174,
+      "excludes_zero": false
+    },
+    "node2vec_bfs__minus__graphsage": {
+      "mean_diff": 0.0006006048060953617,
+      "ci_lower": -0.003014140832237899,
+      "ci_upper": 0.004025326413102446,
+      "ci_se": 0.0017986349064425908,
+      "excludes_zero": false
+    },
+    "node2vec_dfs__minus__graphsage": {
+      "mean_diff": 0.00099854520522058,
+      "ci_lower": -0.0025631626427639266,
+      "ci_upper": 0.004717498214449732,
+      "ci_se": 0.0017686945823638005,
+      "excludes_zero": false
+    }
+  },
+  "D_drug_disease_direct": {
+    "deepwalk__minus__node2vec_bfs": {
+      "mean_diff": -0.0032710914965718985,
+      "ci_lower": -0.013058461342006921,
+      "ci_upper": 0.005713796452619127,
+      "ci_se": 0.004630277049652893,
+      "excludes_zero": false
+    },
+    "deepwalk__minus__node2vec_dfs": {
+      "mean_diff": -0.009036274626851082,
+      "ci_lower": -0.0179198635276407,
+      "ci_upper": -0.0007457337036612447,
+      "ci_se": 0.00441819610858693,
+      "excludes_zero": true
+    },
+    "deepwalk__minus__graphsage": {
+      "mean_diff": -0.01671784371137619,
+      "ci_lower": -0.0303702874109149,
+      "ci_upper": -0.005391510482877499,
+      "ci_se": 0.00628137729327314,
+      "excludes_zero": true
+    },
+    "node2vec_bfs__minus__node2vec_dfs": {
+      "mean_diff": -0.005765182431787252,
+      "ci_lower": -0.013744295039214195,
+      "ci_upper": 0.0024906616308726357,
+      "ci_se": 0.004172160827119097,
+      "excludes_zero": false
+    },
+    "node2vec_bfs__minus__graphsage": {
+      "mean_diff": -0.013446751050651073,
+      "ci_lower": -0.025799463316798204,
+      "ci_upper": -0.0012657241255510628,
+      "ci_se": 0.006099961914886328,
+      "excludes_zero": true
+    },
+    "node2vec_dfs__minus__graphsage": {
+      "mean_diff": -0.007681569084525108,
+      "ci_lower": -0.020501341251656403,
+      "ci_upper": 0.003822659532306715,
+      "ci_se": 0.006240885028781924,
+      "excludes_zero": false
+    }
+  }
+}
