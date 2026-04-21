@@ -1,0 +1,66 @@
+{
+  "A_drug_gene_disease": {
+    "individual": {
+      "deepwalk": -0.00502470089122653,
+      "node2vec_bfs": -0.00446503609418869,
+      "node2vec_dfs": -0.005540873855352402,
+      "graphsage": -0.0024883421137928963
+    },
+    "joint_tau_bar": -0.004773908294737339,
+    "joint_ci_lower": -0.011037978343665598,
+    "joint_ci_upper": 0.0012612389313289862,
+    "max_individual_tau_bar": -0.0024883421137928963,
+    "complementarity_gap": -0.0022855661809444427,
+    "interpretation": "redundant",
+    "auc_T": 0.976723426178141,
+    "auc_TS_all": 0.9966126221759333
+  },
+  "B_drug_pathway_disease": {
+    "individual": {
+      "deepwalk": 0.00033489419729448855,
+      "node2vec_bfs": -0.0013678609393537045,
+      "node2vec_dfs": -0.0003234569448977709,
+      "graphsage": 0.0014878317015245557
+    },
+    "joint_tau_bar": 4.2245654185535386e-05,
+    "joint_ci_lower": -0.004956617054995147,
+    "joint_ci_upper": 0.005303516599815339,
+    "max_individual_tau_bar": 0.0014878317015245557,
+    "complementarity_gap": -0.0014455860473390203,
+    "interpretation": "redundant",
+    "auc_T": 0.9830372142419744,
+    "auc_TS_all": 0.9969525788317964
+  },
+  "C_disease_phenotype_gene": {
+    "individual": {
+      "deepwalk": 0.012001789174973965,
+      "node2vec_bfs": 0.011261838488280773,
+      "node2vec_dfs": 0.011659780517220497,
+      "graphsage": 0.010661236941814423
+    },
+    "joint_tau_bar": 0.014912337064743042,
+    "joint_ci_lower": 0.010264625772833824,
+    "joint_ci_upper": 0.019502042094245553,
+    "max_individual_tau_bar": 0.012001789174973965,
+    "complementarity_gap": 0.0029105478897690773,
+    "interpretation": "redundant",
+    "auc_T": 0.9426350057436798,
+    "auc_TS_all": 0.9949177909471967
+  },
+  "D_drug_disease_direct": {
+    "individual": {
+      "deepwalk": -0.012942624278366566,
+      "node2vec_bfs": -0.009671533480286598,
+      "node2vec_dfs": -0.003906352445483208,
+      "graphsage": 0.00377521850168705
+    },
+    "joint_tau_bar": -0.007347851525992155,
+    "joint_ci_lower": -0.02089123586192727,
+    "joint_ci_upper": 0.0060959440772421596,
+    "max_individual_tau_bar": 0.00377521850168705,
+    "complementarity_gap": -0.011123070027679205,
+    "interpretation": "redundant",
+    "auc_T": 0.9169655964062207,
+    "auc_TS_all": 0.9875694283482277
+  }
+}
