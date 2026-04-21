@@ -140,12 +140,33 @@ Schema & Sampler & $\mathrm{AUC}_T$ & $\mathrm{AUC}_{TS}$ & $\Delta\mathrm{AUC}$
 \end{tabular}
 \end{table}
 
-Two patterns are immediate. First, the AUC gap from structure is anti-correlated with text-baseline strength: when text already classifies near-perfectly (Schemas A, B), structure adds only $+0.01$--$0.02$ AUC; when text is weaker (Schemas C, D), structure adds $+0.03$--$0.07$. Second, within each schema, the three random-walk samplers are statistically indistinguishable, while GraphSAGE consistently produces about half the AUC gap. We confirm both patterns with paired contrasts in \S\ref{sec:contrasts}.
+Two patterns are immediate. First, the AUC gap from structure is anti-correlated with text-baseline strength: when text already classifies near-perfectly (Schemas A, B), structure adds only $+0.01$--$0.02$ AUC; when text is weaker (Schemas C, D), structure adds $+0.03$--$0.07$. Figure~\ref{fig:in-dist-bars} visualizes this pattern, and Figure~\ref{fig:text-vs-struct} plots structural value against text adequacy directly. Second, within each schema, the three random-walk samplers are statistically indistinguishable, while GraphSAGE consistently produces about half the AUC gap. Paired cluster-bootstrap contrasts on Schemas A, B, C confirm no within-walk-sampler differences exclude zero (\texttt{results/sampler\_contrasts.json}); on Schema D some contrasts are nominally significant, driven by $\bar\tau$ calibration noise at small $N$ rather than meaningful AUC differences.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.92\textwidth]{../results/fig_in_dist_auc_gap.png}
+\caption{In-distribution AUC gap from structure, per (schema, sampler). Random walks are indistinguishable within each schema; GraphSAGE is consistently weakest.}
+\label{fig:in-dist-bars}
+\end{figure}
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.62\textwidth]{../results/fig_text_vs_structure.png}
+\caption{Structural residual value vs.\ text adequacy. Each point is one (schema, sampler) combination. Lower text AUC (left) yields larger residual structural value.}
+\label{fig:text-vs-struct}
+\end{figure}
 
 \subsection{Joint stacking: samplers are largely redundant}
 \label{sec:joint}
 
-Concatenating all four samplers' structural features adds at most $+0.004$ AUC over the best individual sampler (Table~\ref{tab:joint}). The walk-based samplers carry essentially the same residual signal, and GraphSAGE adds a small unique increment that is dominated by random walks.
+Concatenating all four samplers' structural features adds at most $+0.004$ AUC over the best individual sampler (Table~\ref{tab:joint}, Figure~\ref{fig:joint}). The walk-based samplers carry essentially the same residual signal, and GraphSAGE adds a small unique increment that is dominated by random walks.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.7\textwidth]{../results/fig_joint_redundancy.png}
+\caption{Joint sampler stacking (black star) versus best individual sampler (tallest colored bar) per schema. The joint model only marginally exceeds the best individual.}
+\label{fig:joint}
+\end{figure}
 
 \begin{table}[h!]
 \centering
@@ -169,14 +190,28 @@ D & 0.984 & 0.9876 & $+0.0036$ \\
 
 We bin held-out pairs by their shortest-path distance in the schema subgraph (with the direct edge removed if present) and report $\bar\tau$ per bin.
 
-On the largest-sample schema (C, $N=33{,}638$), all four samplers exhibit a clean monotone decrease: $\bar\tau(h{=}2) \approx +0.030$, $\bar\tau(h{=}3) \approx -0.005$, $\bar\tau(h{=}4{+}) \approx -0.055$. The smaller-sample schemas (A, B, D) show similar patterns but with calibration noise that is most severe in the smallest bins.
+On the largest-sample schema (C, $N=33{,}638$), all four samplers exhibit a clean monotone decrease: $\bar\tau(h{=}2) \approx +0.030$, $\bar\tau(h{=}3) \approx -0.005$, $\bar\tau(h{=}4{+}) \approx -0.055$ (Figure~\ref{fig:hop}). The smaller-sample schemas (A, B, D) show similar patterns but with calibration noise that is most severe in the smallest bins.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=\textwidth]{../results/fig_hop_stratified.png}
+\caption{$\bar\tau$ binned by shortest-path distance between held-out pair endpoints (with the direct edge removed). Schema C, with the largest sample, shows a clean monotone decrease; small-N schemas exhibit the same trend with noise.}
+\label{fig:hop}
+\end{figure}
 
 This counters the intuition popular in GraphRAG that structural retrieval pays off most for ``distant'' or ``multi-hop'' queries. For PrimeKG link prediction, structure helps most precisely at short hops, and is least useful for the longest-range pairs where the structural samplers cannot bridge the distance reliably either.
 
 \subsection{Schema transfer: walk-based generalizes, aggregation does not}
 \label{sec:transfer}
 
-For each held-out schema we trained the DML nuisances on pairs pooled from the other three schemas, then evaluated on the held-out schema using its own sampler embeddings. Table~\ref{tab:transfer} reports out-of-distribution AUC values.
+For each held-out schema we trained the DML nuisances on pairs pooled from the other three schemas, then evaluated on the held-out schema using its own sampler embeddings. Table~\ref{tab:transfer} reports out-of-distribution AUC values; Figure~\ref{fig:transfer} visualizes them.
+
+\begin{figure}[h!]
+\centering
+\includegraphics[width=0.95\textwidth]{../results/fig_schema_transfer.png}
+\caption{Schema-transfer AUC. Light-gray bars: text-only baseline trained on the three source schemas. Colored bars: same nuisance plus each sampler's structural features on the held-out schema. Walk-based samplers improve over text in every schema; GraphSAGE drops below text in three of four.}
+\label{fig:transfer}
+\end{figure}
 
 \begin{table}[h!]
 \centering
